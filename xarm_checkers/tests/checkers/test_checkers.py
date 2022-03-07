@@ -4,8 +4,10 @@ from xarm_checkers.checkers.checkers import Checkers
 import numpy as np
 
 p1_norm = Checkers.P1_NORMAL
+p1_king = Checkers.P1_KING
 empty = Checkers.EMPTY
 p2_norm = Checkers.P2_NORMAL
+p2_king = Checkers.P2_KING
 
 
 def test_checkers_init():
@@ -220,10 +222,5 @@ def test_simple_normal_move():
     # check that trying to move to a spot with an enemy piece fails
     checkers.reset()
     assert checkers.move((2, 1), (3, 2))
-    checkers.switch_turns()
-    assert checkers.move((5, 4), (4, 3))
-    checkers.switch_turns()
-    assert not checkers.move((3, 2), (4, 3))
-
-
-    
+    assert checkers.move((3, 2), (4, 3))
+    assert not checkers.move((4, 3), (5, 4))

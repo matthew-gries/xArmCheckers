@@ -141,9 +141,59 @@ class Checkers:
         else:
             self.current_player = Checkers.PLAYER_ONE
 
+    def get_legal_moves(self, start: Tuple[int, int]) -> List[List[Tuple[int, int]]]:
+        """
+        Get the set of legal moves from this state. A move is defined represented as one or move
+        positions to move to, in sequence.
+
+        :return: a list of list of tuples, where each list of tuples is a sequence of moves (with one or more moves per
+            sequence)
+        :rtype: List[List[Tuple[int, int]]]
+        """
+        is_king = self.board[start[0]][start[1]] == (Checkers.P1_KING if (self.current_player == Checkers.PLAYER_ONE) else Checkers.P2_KING)
+        sequences = self.find_jumps(start=start, is_king=is_king)
+
+        # since we must take the longest jump, check if there is a jump and get the longest sequences
+        if len(sequences) != 0:
+            max_sequence_length = max(len(x) for x in sequences)
+            sequences = [s for s in sequences if len(s) == max_sequence_length]
+            return sequences
+
+        # if there are no jumps to take, check diagonals
+        sequences = []
+        i, j = start
+
+        valid_diagonals = []
+        if self.current_player == Checkers.PLAYER_ONE:
+            if i+1 in range(0, self.board_dim) and j-1 in range(0, self.board_dim):
+                valid_diagonals.append((i+1, j-1))
+            if i+1 in range(0, self.board_dim) and j+1 in range(0, self.board_dim):
+                valid_diagonals.append((i+1, j+1))
+            if is_king and i-1 in range(0, self.board_dim) and j-1 in range(0, self.board_dim):
+                valid_diagonals.append((i-1, j-1))
+            if is_king and i-1 in range(0, self.board_dim) and j+1 in range(0, self.board_dim):
+                valid_diagonals.append((i-1, j+1))
+        else:
+            if is_king and i+1 in range(0, self.board_dim) and j-1 in range(0, self.board_dim):
+                valid_diagonals.append((i+1, j-1))
+            if is_king and i+1 in range(0, self.board_dim) and j+1 in range(0, self.board_dim):
+                valid_diagonals.append((i+1, j+1))
+            if i-1 in range(0, self.board_dim) and j-1 in range(0, self.board_dim):
+                valid_diagonals.append((i-1, j-1))
+            if i-1 in range(0, self.board_dim) and j+1 in range(0, self.board_dim):
+                valid_diagonals.append((i-1, j+1))
+
+        for diag in valid_diagonals:
+            if self.board[diag[0]][diag[1]] == Checkers.EMPTY:
+                sequences.append([diag])
+
+        return sequences
+                
+    # TODO move shouldnt really enforce any rules
     def move(self, move_from: Tuple[int, int], move_to: Tuple[int, int]) -> bool:
         """
-        Perform the given action, if possible. 
+        Perform the given action, if possible. Does not enforce movement rules and
+        allows for one jump at a time
 
         :param move_from: tuple describing the (row, col) to move from
         :type move_from: Tuple[int, int]
@@ -195,15 +245,14 @@ class Checkers:
         # if the different in rows is greater than one, assume we are trying to
         # jump
         if abs(from_i - to_i) > 1:
-            jump_sequences = self._find_jumps(start=move_from, is_king=True)
-            jumps = None
-            # check if there is a sequence of jumps we can make
-            for jump_sequence in jump_sequences:
-                if jump_sequence[-1] == move_to:
-                    jumps = jump_sequence
-                    break
+            jump_sequences = self.find_jumps(start=move_from, is_king=True)
+            # filter these jump sequences such that its only those of length one
+            jump_sequences = [js for js in jump_sequences if len(js) == 1]
             
             if jumps is None:
+                return False
+            
+            if jumps[-1] != move_to:
                 return False
 
             self._execute_jumps(start=move_from, jumps=jumps)
@@ -231,6 +280,7 @@ class Checkers:
         """
         from_i, from_j = move_from
         to_i, to_j = move_to
+        jump_sequences = self.find_jumps(start=move_from, is_king=False)
          
         # depending on if player 1 or player 2, check if the direction is ok
         if self.current_player == Checkers.PLAYER_ONE:
@@ -243,15 +293,17 @@ class Checkers:
         # if the different in rows is greater than one, assume we are trying to
         # jump
         if abs(from_i - to_i) > 1:
-            jump_sequences = self._find_jumps(start=move_from, is_king=False)
             jumps = None
-            # check if there is a sequence of jumps we can make
+            num_jumps = -1
             for jump_sequence in jump_sequences:
-                if jump_sequence[-1] == move_to:
+                if len(jump_sequence) > num_jumps:
                     jumps = jump_sequence
-                    break
+                    num_jumps = len(jump_sequence)
             
             if jumps is None:
+                return False
+            
+            if jumps[-1] != move_to:
                 return False
 
             self._execute_jumps(start=move_from, jumps=jumps)
@@ -259,6 +311,9 @@ class Checkers:
 
         # otherwise we just do a single space move
         else:
+            # if there is a jump we must take it, so return False
+            if len(jump_sequences) != 0:
+                return False
             # make sure it is a diagonal move
             if abs(from_j - to_j) != 1:
                 return False
@@ -295,16 +350,7 @@ class Checkers:
         
         self.board[to_i][to_j] = new_piece
 
-    def _inc_current_player_score(self) -> None:
-        """
-        Increment the score of the current player by 1
-        """
-        if self.current_player == self.PLAYER_ONE:
-            self.p1_score += 1
-        else:
-            self.p2_score += 1
-
-    def _find_jumps(self, start: Tuple[int, int], is_king: bool = False) -> List[List[Tuple[int, int]]]:
+    def find_jumps(self, start: Tuple[int, int], is_king: bool = False) -> List[List[Tuple[int, int]]]:
         """
         Find all jumps possible from a normal piece from the given starting position
 
@@ -351,7 +397,7 @@ class Checkers:
                 and (self.board[i1][j1] == player_normal or self.board[i1][j1] == player_king)
                 and self.board[i2][j2] == self.EMPTY
             ):
-                jump_sequences = self._find_normal_jumps_helper(start=(i2, j2))
+                jump_sequences = self._find_jumps_helper(start=(i2, j2), is_king=is_king)
                 if len(jump_sequences) == 0:
                     jump_sequences.append(deque([(i2, j2)]))
                 else:
@@ -402,12 +448,17 @@ class Checkers:
         :type jumps: List[Tuple[int, int]]
         """
 
+        self.board[start[0]][start[1]] = Checkers.EMPTY
         current_pos = start
-        for next_pos in jumps[:-1]:
-            enemy_pos = (abs(current_pos[0] - next_pos[0]) // 2, abs(current_pos[1] - next_pos[1]) // 2)
+        for next_pos in jumps:
+            enemy_pos = (abs(current_pos[0] + next_pos[0]) // 2, abs(current_pos[1] + next_pos[1]) // 2)
+            enemy_piece = self.board[enemy_pos[0]][enemy_pos[1]]
             self.board[enemy_pos[0]][enemy_pos[1]] = self.EMPTY
-            self._inc_current_player_score()
+            if self.current_player == self.PLAYER_ONE:
+                self.p1_score += (1 if enemy_piece == Checkers.P2_NORMAL else 2)
+            else:
+                self.p2_score += (1 if enemy_piece == Checkers.P1_NORMAL else 2)
             current_pos = next_pos
 
-        last_spot = jumps[:-1]
+        last_spot = jumps[-1]
         self._set_new_piece(move_to=last_spot)
