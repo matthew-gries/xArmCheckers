@@ -1,4 +1,5 @@
 from tabnanny import check
+from tkinter.tix import CheckList
 from xarm_checkers.checkers.checkers import Checkers
 import numpy as np
 
@@ -78,8 +79,8 @@ def test_reset():
     # simulate a move
     checkers.board[2][1] = Checkers.EMPTY
     checkers.board[3][2] = Checkers.P1_NORMAL
-    assert checkers.p1_score == 999
-    assert checkers.p2_score == 999
+    checkers.p1_score == 999
+    checkers.p2_score == 999
     checkers.current_player = Checkers.PLAYER_TWO
 
     checkers.reset()
@@ -137,3 +138,92 @@ def test_is_game_over():
     board = checkers.board
     board[board == Checkers.P2_NORMAL] = Checkers.EMPTY
     assert checkers.is_game_over()
+
+
+def test_switch_turns():
+
+    checkers = Checkers()
+    assert checkers.current_player == Checkers.PLAYER_ONE
+    checkers.switch_turns()
+    assert checkers.current_player == Checkers.PLAYER_TWO
+    checkers.switch_turns()
+    assert checkers.current_player == Checkers.PLAYER_ONE
+
+
+def test_simple_normal_move():
+    # test that simple moves work
+
+    checkers = Checkers()
+
+    # make a single move
+    assert checkers.move((2, 1), (3, 0))
+    assert checkers.board[2][1] == Checkers.EMPTY
+    assert checkers.board[3][0] == Checkers.P1_NORMAL
+    checkers.switch_turns()
+    assert checkers.move((5, 0), (4, 1))
+    assert checkers.board[5][0] == Checkers.EMPTY
+    assert checkers.board[4][1] == Checkers.P2_NORMAL
+
+    checkers.reset()
+
+    # make a single move in the opposite left/right direction
+    assert checkers.move((2, 1), (3, 2))
+    assert checkers.board[2][1] == Checkers.EMPTY
+    assert checkers.board[3][2] == Checkers.P1_NORMAL
+    checkers.switch_turns()
+    assert checkers.move((5, 6), (4, 5))
+    assert checkers.board[5][6] == Checkers.EMPTY
+    assert checkers.board[4][5] == Checkers.P2_NORMAL
+
+    checkers.reset()
+
+    # make two single moves
+    assert checkers.move((2, 1), (3, 2))
+    assert checkers.board[2][1] == Checkers.EMPTY
+    assert checkers.board[3][2] == Checkers.P1_NORMAL
+    checkers.switch_turns()
+    assert checkers.move((5, 6), (4, 5))
+    assert checkers.board[5][6] == Checkers.EMPTY
+    assert checkers.board[4][5] == Checkers.P2_NORMAL
+    checkers.switch_turns()
+    assert checkers.move((3, 2), (4, 1))
+    assert checkers.board[2][1] == Checkers.EMPTY
+    assert checkers.board[3][2] == Checkers.EMPTY
+    assert checkers.board[4][1] == Checkers.P1_NORMAL
+    checkers.switch_turns()
+    assert checkers.move((4, 5), (3, 6))
+    assert checkers.board[5][6] == Checkers.EMPTY
+    assert checkers.board[4][5] == Checkers.EMPTY
+    assert checkers.board[3][6] == Checkers.P2_NORMAL
+
+    checkers.reset()
+
+    # try to make some invalid moves
+    assert not checkers.move((2, 1), (2, 2)) # to the right
+    assert not checkers.move((2, 1), (2, 0)) # to the left
+    assert not checkers.move((2, 1), (1, 1)) # up
+    assert not checkers.move((2, 1), (3, 1)) # down
+    assert not checkers.move((2, 1), (4, 3)) # two spaces diagonally
+
+    # check that the board is not mutated when failing
+    assert np.array_equiv(checkers.board, np.array([
+        [empty, p1_norm, empty, p1_norm, empty, p1_norm, empty, p1_norm],
+        [p1_norm, empty, p1_norm, empty, p1_norm, empty, p1_norm, empty],
+        [empty, p1_norm, empty, p1_norm, empty, p1_norm, empty, p1_norm],
+        [empty, empty, empty, empty, empty, empty, empty, empty],
+        [empty, empty, empty, empty, empty, empty, empty, empty],
+        [p2_norm, empty, p2_norm, empty, p2_norm, empty, p2_norm, empty],
+        [empty, p2_norm, empty, p2_norm, empty, p2_norm, empty, p2_norm],
+        [p2_norm, empty, p2_norm, empty, p2_norm, empty, p2_norm, empty],
+    ], dtype=np.int8))
+
+    # check that trying to move to a spot with an enemy piece fails
+    checkers.reset()
+    assert checkers.move((2, 1), (3, 2))
+    checkers.switch_turns()
+    assert checkers.move((5, 4), (4, 3))
+    checkers.switch_turns()
+    assert not checkers.move((3, 2), (4, 3))
+
+
+    

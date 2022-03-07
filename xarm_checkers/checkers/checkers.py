@@ -40,6 +40,12 @@ class Checkers:
         self.reset()
 
     def __str__(self) -> str:
+        """
+        Make a string representation of this game
+
+        :return: this game represented as a string
+        :rtype: str
+        """
 
         board = self.board.copy().astype(object)
         board[board == self.EMPTY] = "  "
@@ -126,6 +132,15 @@ class Checkers:
 
         return self.winner() is not None
 
+    def switch_turns(self):
+        """
+        Switch whose turn it is
+        """
+        if self.current_player == Checkers.PLAYER_ONE:
+            self.current_player = Checkers.PLAYER_TWO
+        else:
+            self.current_player = Checkers.PLAYER_ONE
+
     def move(self, move_from: Tuple[int, int], move_to: Tuple[int, int]) -> bool:
         """
         Perform the given action, if possible. 
@@ -148,7 +163,7 @@ class Checkers:
             return False
         
         # First check if the piece we are looking at is valid, given the current player
-        piece = self.board[move_from[0]][move_to[1]]
+        piece = self.board[move_from[0]][move_from[1]]
         
         if self.current_player == self.PLAYER_ONE and not (piece == self.P1_KING or piece == self.P1_NORMAL):
             return False
@@ -176,7 +191,7 @@ class Checkers:
         :rtype: bool
         """
         from_i, from_j = move_from
-        to_i, _ = move_to
+        to_i, to_j = move_to
         # if the different in rows is greater than one, assume we are trying to
         # jump
         if abs(from_i - to_i) > 1:
@@ -196,6 +211,9 @@ class Checkers:
 
         # otherwise we just do a single space move
         else:
+            # make sure it is a diagonal move
+            if abs(from_j - to_j) != 1:
+                return False
             self.board[from_i][from_j] = Checkers.EMPTY
             self._set_new_piece(move_to=move_to, already_king=True)
             return True
@@ -212,7 +230,7 @@ class Checkers:
         :rtype: bool
         """
         from_i, from_j = move_from
-        to_i, _ = move_to
+        to_i, to_j = move_to
          
         # depending on if player 1 or player 2, check if the direction is ok
         if self.current_player == Checkers.PLAYER_ONE:
@@ -241,6 +259,9 @@ class Checkers:
 
         # otherwise we just do a single space move
         else:
+            # make sure it is a diagonal move
+            if abs(from_j - to_j) != 1:
+                return False
             self.board[from_i][from_j] = Checkers.EMPTY
             self._set_new_piece(move_to=move_to)
             return True
