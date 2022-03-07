@@ -14,6 +14,8 @@ def test_checkers_init():
 
     assert checkers.board_dim == 8
     assert checkers.current_player == Checkers.PLAYER_ONE
+    assert checkers.p1_score == 0
+    assert checkers.p2_score == 0
     assert np.array_equiv(checkers.board, np.array([
         [empty, p1_norm, empty, p1_norm, empty, p1_norm, empty, p1_norm],
         [p1_norm, empty, p1_norm, empty, p1_norm, empty, p1_norm, empty],
@@ -30,6 +32,8 @@ def test_checkers_init():
 
     assert checkers6.board_dim == 6
     assert checkers6.current_player == Checkers.PLAYER_ONE
+    assert checkers.p1_score == 0
+    assert checkers.p2_score == 0
     assert np.array_equiv(checkers6.board, np.array([
         [empty, p1_norm, empty, p1_norm, empty, p1_norm],
         [p1_norm, empty, p1_norm, empty, p1_norm, empty],
@@ -58,6 +62,8 @@ def test_reset():
     checkers = Checkers()
 
     assert checkers.current_player == Checkers.PLAYER_ONE
+    assert checkers.p1_score == 0
+    assert checkers.p2_score == 0
     assert np.array_equiv(checkers.board, np.array([
         [empty, p1_norm, empty, p1_norm, empty, p1_norm, empty, p1_norm],
         [p1_norm, empty, p1_norm, empty, p1_norm, empty, p1_norm, empty],
@@ -72,11 +78,15 @@ def test_reset():
     # simulate a move
     checkers.board[2][1] = Checkers.EMPTY
     checkers.board[3][2] = Checkers.P1_NORMAL
+    assert checkers.p1_score == 999
+    assert checkers.p2_score == 999
     checkers.current_player = Checkers.PLAYER_TWO
 
     checkers.reset()
 
     assert checkers.current_player == Checkers.PLAYER_ONE
+    assert checkers.p1_score == 0
+    assert checkers.p2_score == 0
     assert np.array_equiv(checkers.board, np.array([
         [empty, p1_norm, empty, p1_norm, empty, p1_norm, empty, p1_norm],
         [p1_norm, empty, p1_norm, empty, p1_norm, empty, p1_norm, empty],
