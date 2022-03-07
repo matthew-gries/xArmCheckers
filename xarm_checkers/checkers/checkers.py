@@ -2,6 +2,7 @@ from typing import List, Optional, Tuple
 from collections import deque
 import numpy as np
 
+
 class Checkers:
     """
     Implementation of a standard game of checkers, using an 8x8 board with 12 pieces
@@ -103,6 +104,7 @@ class Checkers:
                 for j in range(0, pieces_per_row*2, 2):
                     self.board[i][j] = self.P2_NORMAL
     
+    # TODO this is wrong, we need to check the legal moves
     def winner(self) -> Optional[int]:
         """
         Get the winner of this game, if there is one.
@@ -141,22 +143,37 @@ class Checkers:
         else:
             self.current_player = Checkers.PLAYER_ONE
 
-    def get_legal_moves(self, start: Tuple[int, int]) -> List[List[Tuple[int, int]]]:
+    def get_legal_moves(self, start: Tuple[int, int], ignore_turn: bool = False) -> List[List[Tuple[int, int]]]:
         """
         Get the set of legal moves from this state. A move is defined represented as one or move
-        positions to move to, in sequence.
+        positions to move to, in sequence. Note that if at least one sequence of jumps is available,
+        then jumps are the only moves that are legal (i.e. jumps are enforced)
 
+
+        :param start: the position of the piece to get moves from
+        :type start: Tuple[int, int]
+        :param ignore_turn: if True, get moves regardless if it is this players turn or not, otherwise if it is
+            not the players turn return an empty list. Defaults to False
+        :type ignore_turn: Optional[bool]
         :return: a list of list of tuples, where each list of tuples is a sequence of moves (with one or more moves per
             sequence)
         :rtype: List[List[Tuple[int, int]]]
         """
-        is_king = self.board[start[0]][start[1]] == (Checkers.P1_KING if (self.current_player == Checkers.PLAYER_ONE) else Checkers.P2_KING)
+        
+        piece = self.board[start[0]][start[1]]
+        if piece == Checkers.EMPTY:
+            return []
+        
+        if not ignore_turn and (
+            self.current_player == Checkers.PLAYER_ONE and not (piece == Checkers.P1_KING or piece == Checkers.P1_NORMAL)
+            or self.current_player == Checkers.PLAYER_TWO and not (piece == Checkers.P2_KING or piece == Checkers.P2_NORMAL)
+        ):
+            return []
+        
+        is_king = piece == (Checkers.P1_KING if (self.current_player == Checkers.PLAYER_ONE) else Checkers.P2_KING)
         sequences = self.find_jumps(start=start, is_king=is_king)
 
-        # since we must take the longest jump, check if there is a jump and get the longest sequences
         if len(sequences) != 0:
-            max_sequence_length = max(len(x) for x in sequences)
-            sequences = [s for s in sequences if len(s) == max_sequence_length]
             return sequences
 
         # if there are no jumps to take, check diagonals
@@ -189,11 +206,15 @@ class Checkers:
 
         return sequences
                 
-    # TODO move shouldnt really enforce any rules
     def move(self, move_from: Tuple[int, int], move_to: Tuple[int, int]) -> bool:
         """
-        Perform the given action, if possible. Does not enforce movement rules and
-        allows for one jump at a time
+        Move a piece from one position to another, if possible. Does not enforce movement
+        rules or whose turn it is but does enforce the following:
+            * There must be a piece at `move_from`
+            * `move_to` must be empty
+            * Both `move_to` and `move_from` must be points within the board
+        
+        This function also does not update normal pieces to kings.
 
         :param move_from: tuple describing the (row, col) to move from
         :type move_from: Tuple[int, int]
@@ -214,141 +235,19 @@ class Checkers:
         
         # First check if the piece we are looking at is valid, given the current player
         piece = self.board[move_from[0]][move_from[1]]
-        
-        if self.current_player == self.PLAYER_ONE and not (piece == self.P1_KING or piece == self.P1_NORMAL):
-            return False
-        if self.current_player == self.PLAYER_TWO and not (piece == self.P2_KING or piece == self.P2_NORMAL):
+
+        if piece == self.EMPTY:
             return False
 
+        # Check where we are moving is an empty space
         if self.board[move_to[0]][move_to[1]] != self.EMPTY:
             return False
 
-        # Make the move, depending on if the piece was a king or a normal piece
-        if piece == self.P1_KING or piece == self.P2_KING:
-            return self._move_king(move_from, move_to)
+        # Finally move the piece
+        self.board[move_to[0]][move_to[1]] = piece
+        self.board[move_from[0]][move_from[1]] = self.EMPTY
+        return True
 
-        return self._move_normal(move_from, move_to)
-
-    def _move_king(self, move_from: Tuple[int, int], move_to: Tuple[int, int]) -> bool:
-        """
-        Move a king piece, if possible
-
-        :param move_from: tuple describing the (row, col) to move from
-        :type move_from: Tuple[int, int]
-        :param move_to: tuple describing the (row, col) to move to
-        :type move_to: Tuple[int, int]
-        :return: True if the move was able to be performed, False if not
-        :rtype: bool
-        """
-        from_i, from_j = move_from
-        to_i, to_j = move_to
-        # if the different in rows is greater than one, assume we are trying to
-        # jump
-        if abs(from_i - to_i) > 1:
-            jump_sequences = self.find_jumps(start=move_from, is_king=True)
-            # filter these jump sequences such that its only those of length one
-            jump_sequences = [js for js in jump_sequences if len(js) == 1]
-            
-            if jumps is None:
-                return False
-            
-            if jumps[-1] != move_to:
-                return False
-
-            self._execute_jumps(start=move_from, jumps=jumps)
-            return True
-
-        # otherwise we just do a single space move
-        else:
-            # make sure it is a diagonal move
-            if abs(from_j - to_j) != 1:
-                return False
-            self.board[from_i][from_j] = Checkers.EMPTY
-            self._set_new_piece(move_to=move_to, already_king=True)
-            return True
-
-    def _move_normal(self, move_from: Tuple[int, int], move_to: Tuple[int, int]) -> bool:
-        """
-        Move a normal piece, if possible
-
-        :param move_from: tuple describing the (row, col) to move from
-        :type move_from: Tuple[int, int]
-        :param move_to: tuple describing the (row, col) to move to
-        :type move_to: Tuple[int, int]
-        :return: True if the move was able to be performed, False if not
-        :rtype: bool
-        """
-        from_i, from_j = move_from
-        to_i, to_j = move_to
-        jump_sequences = self.find_jumps(start=move_from, is_king=False)
-         
-        # depending on if player 1 or player 2, check if the direction is ok
-        if self.current_player == Checkers.PLAYER_ONE:
-            if to_i <= from_i:
-                return False
-        else:
-            if to_i >= from_i:
-                return False
-
-        # if the different in rows is greater than one, assume we are trying to
-        # jump
-        if abs(from_i - to_i) > 1:
-            jumps = None
-            num_jumps = -1
-            for jump_sequence in jump_sequences:
-                if len(jump_sequence) > num_jumps:
-                    jumps = jump_sequence
-                    num_jumps = len(jump_sequence)
-            
-            if jumps is None:
-                return False
-            
-            if jumps[-1] != move_to:
-                return False
-
-            self._execute_jumps(start=move_from, jumps=jumps)
-            return True
-
-        # otherwise we just do a single space move
-        else:
-            # if there is a jump we must take it, so return False
-            if len(jump_sequences) != 0:
-                return False
-            # make sure it is a diagonal move
-            if abs(from_j - to_j) != 1:
-                return False
-            self.board[from_i][from_j] = Checkers.EMPTY
-            self._set_new_piece(move_to=move_to)
-            return True
-            
-    def _set_new_piece(self, move_to: Tuple[int, int], already_king: bool = False) -> None:
-
-        to_i, to_j = move_to
-
-        # check for making a new king
-        make_king = (
-            (self.current_player == Checkers.PLAYER_ONE and to_i == self.board_dim-1)
-            or (self.current_player == Checkers.PLAYER_TWO and to_i == 0)
-        ) and not already_king
-        
-        # take a piece away from the other player
-        if make_king:
-            if self.current_player == Checkers.PLAYER_ONE:
-                self.p2_score -= 1
-            else:
-                self.p1_score -= 1
-
-        new_piece = None
-        if self.current_player == Checkers.PLAYER_ONE and (make_king or already_king):
-            new_piece = Checkers.P1_KING
-        elif self.current_player == Checkers.PLAYER_TWO and (make_king or already_king):
-            new_piece = Checkers.P2_KING
-        elif self.current_player == Checkers.PLAYER_ONE and not (make_king or already_king):
-            new_piece = Checkers.P1_NORMAL
-        else:
-            new_piece = Checkers.P2_NORMAL
-        
-        self.board[to_i][to_j] = new_piece
 
     def find_jumps(self, start: Tuple[int, int], is_king: bool = False) -> List[List[Tuple[int, int]]]:
         """

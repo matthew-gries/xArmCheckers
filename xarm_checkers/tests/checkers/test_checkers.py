@@ -152,6 +152,143 @@ def test_switch_turns():
     assert checkers.current_player == Checkers.PLAYER_ONE
 
 
+def test_legal_moves_normal_pieces_no_jumps():
+
+    checkers = Checkers()
+    # check that looking at an empty piece gives us no moves
+    assert checkers.get_legal_moves((2, 0)) == []
+    assert checkers.get_legal_moves((2, 0), ignore_turn=True) == []
+    # check that looking at a boxed in piece gives no moves
+    assert checkers.get_legal_moves((1, 0)) == []
+    assert checkers.get_legal_moves((7, 0), ignore_turn=True) == []
+
+    # can move diagonally to the left or right, no jumps
+    moves_from_2_1 = checkers.get_legal_moves((2, 1))
+    assert len(moves_from_2_1) == 2
+    assert [(3, 0)] in moves_from_2_1
+    assert [(3, 2)] in moves_from_2_1
+
+    # can move diagonally only to the left
+    moves_from_2_7 = checkers.get_legal_moves((2, 7))
+    assert len(moves_from_2_7) == 1
+    assert [(3, 6)] in moves_from_2_7
+
+    # do the same for the other side, but first see that we don't
+    # ignore if not the current player
+    assert checkers.get_legal_moves((5, 2)) == []
+    # Check that ignoring also gives [] because we are still player one
+    assert checkers.get_legal_moves((5, 2), ignore_turn=True) == []
+
+    # check that there are two diagonal moves
+    checkers.switch_turns()
+    moves_from_5_2 = checkers.get_legal_moves((5,2))
+    assert len(moves_from_5_2) == 2
+    assert [(4, 1)] in moves_from_5_2
+    assert [(4, 3)] in moves_from_5_2
+
+    # check that there is one diagonal move
+    moves_from_5_0 = checkers.get_legal_moves((5,0))
+    assert len(moves_from_5_0) == 1
+    assert [(4, 1)] in moves_from_5_0
+
+    checkers.reset()
+
+    # make a contrived example that shows that the piece will only move forward
+    checkers.board[2][1] = empty
+    checkers.board[3][2] = p1_norm
+    moves_from_3_2 = checkers.get_legal_moves((3, 2))
+    assert len(moves_from_3_2) == 2
+    assert [(4, 1)] in moves_from_3_2
+    assert [(4, 3)] in moves_from_3_2
+
+    # do the same for player 2
+    checkers.reset()
+    checkers.switch_turns()
+    checkers.board[5][2] = empty
+    checkers.board[4][3] = p2_norm
+    moves_from_4_3 = checkers.get_legal_moves((4, 3))
+    assert len(moves_from_4_3) == 2
+    assert [(3, 2)] in moves_from_4_3
+    assert [(3, 4)] in moves_from_4_3
+
+
+def test_legal_moves_king_pieces_no_jumps():
+
+    # make a contrived example with only one king piece that can move in any diagonal
+    # direction, do that same with both players
+    checkers = Checkers()
+    checkers.board.fill(empty)
+    checkers.board[2][1] = p1_king
+    checkers.board[5][4] = p2_king
+
+    p1_moves = checkers.get_legal_moves((2, 1))
+    assert len(p1_moves) == 4
+    assert [(1, 0)] in p1_moves
+    assert [(1, 2)] in p1_moves
+    assert [(3, 0)] in p1_moves
+    assert [(3, 2)] in p1_moves
+
+    assert checkers.get_legal_moves((5, 4)) == []
+    checkers.switch_turns()
+    p2_moves = checkers.get_legal_moves((5, 4))
+    assert len(p2_moves) == 4
+    assert [(4, 3)] in p2_moves
+    assert [(4, 5)] in p2_moves
+    assert [(6, 3)] in p2_moves
+    assert [(6, 5)] in p2_moves
+
+    # make a contrived example that blocks two diagonals
+    checkers.reset()
+    checkers.board.fill(empty)
+    checkers.board[4][3] = p1_king
+    checkers.board[3][2] = p2_norm
+    checkers.board[2][1] = p2_norm
+    checkers.board[5][4] = p2_king
+    checkers.board[6][5] = p2_king
+
+    p1_moves = checkers.get_legal_moves((4, 3))
+    assert len(p1_moves) == 2
+    assert [(3, 4)] in p1_moves
+    assert [(5, 2)] in p1_moves
+
+
+def test_legal_moves_normal_piece_jumps():
+
+    checkers = Checkers()
+    # make a contrived example where there is exactly one forward jump
+    checkers.board.fill(empty)
+    checkers.board[2][1] = p1_norm
+    checkers.board[3][2] = p2_norm
+
+    jump1_2_1 = checkers.get_legal_moves((2, 1))
+    assert len(jump1_2_1) == 1
+    assert [(4, 3)] in jump1_2_1
+
+    checkers.reset()
+
+    checkers.board.fill(empty)
+    checkers.board[2][1] = p1_norm
+    checkers.board[3][2] = p2_norm
+    checkers.switch_turns()
+
+    jump1_3_2 = checkers.get_legal_moves((3, 2))
+    assert len(jump1_3_2) == 1
+    assert [(1, 0)] in jump1_3_2
+
+    checkers.reset()
+    # make an example where there are two jumps, (since we can only go
+    # forward these jumps are separate), one jump is one piece the other is two
+    checkers.board.fill(empty)
+    checkers.board[2][3] = p1_norm
+    checkers.board[3][4] = p2_norm
+    checkers.board[5][6] = p2_king
+    checkers.board[3][2] = p2_norm
+    jump2_2_3 = checkers.get_legal_moves((2, 3))
+    assert len(jump2_2_3) == 2
+    assert [(4, 5), (6, 7)] in jump2_2_3
+    assert [(4, 1)] in jump2_2_3
+
+
 def test_simple_normal_move():
     # test that simple moves work
 
@@ -161,7 +298,7 @@ def test_simple_normal_move():
     assert checkers.move((2, 1), (3, 0))
     assert checkers.board[2][1] == Checkers.EMPTY
     assert checkers.board[3][0] == Checkers.P1_NORMAL
-    checkers.switch_turns()
+    checkers.reset()
     assert checkers.move((5, 0), (4, 1))
     assert checkers.board[5][0] == Checkers.EMPTY
     assert checkers.board[4][1] == Checkers.P2_NORMAL
@@ -172,7 +309,7 @@ def test_simple_normal_move():
     assert checkers.move((2, 1), (3, 2))
     assert checkers.board[2][1] == Checkers.EMPTY
     assert checkers.board[3][2] == Checkers.P1_NORMAL
-    checkers.switch_turns()
+    checkers.reset()
     assert checkers.move((5, 6), (4, 5))
     assert checkers.board[5][6] == Checkers.EMPTY
     assert checkers.board[4][5] == Checkers.P2_NORMAL
@@ -183,16 +320,13 @@ def test_simple_normal_move():
     assert checkers.move((2, 1), (3, 2))
     assert checkers.board[2][1] == Checkers.EMPTY
     assert checkers.board[3][2] == Checkers.P1_NORMAL
-    checkers.switch_turns()
     assert checkers.move((5, 6), (4, 5))
     assert checkers.board[5][6] == Checkers.EMPTY
     assert checkers.board[4][5] == Checkers.P2_NORMAL
-    checkers.switch_turns()
     assert checkers.move((3, 2), (4, 1))
     assert checkers.board[2][1] == Checkers.EMPTY
     assert checkers.board[3][2] == Checkers.EMPTY
     assert checkers.board[4][1] == Checkers.P1_NORMAL
-    checkers.switch_turns()
     assert checkers.move((4, 5), (3, 6))
     assert checkers.board[5][6] == Checkers.EMPTY
     assert checkers.board[4][5] == Checkers.EMPTY
@@ -200,13 +334,27 @@ def test_simple_normal_move():
 
     checkers.reset()
 
-    # try to make some invalid moves
-    assert not checkers.move((2, 1), (2, 2)) # to the right
-    assert not checkers.move((2, 1), (2, 0)) # to the left
-    assert not checkers.move((2, 1), (1, 1)) # up
-    assert not checkers.move((2, 1), (3, 1)) # down
-    assert not checkers.move((2, 1), (4, 3)) # two spaces diagonally
+    # try to make some moves that go against movement rules but don't violate the assumptions
+    # of this function
+    assert checkers.move((2, 1), (2, 2)) # to the right
+    checkers.reset()
+    assert checkers.move((2, 1), (2, 0)) # to the left
+    checkers.reset()
+    assert checkers.move((2, 1), (1, 1)) # up
+    checkers.reset()
+    assert checkers.move((2, 1), (3, 1)) # down
+    checkers.reset()
+    assert checkers.move((2, 1), (4, 3)) # two spaces diagonally
+    checkers.reset()
 
+    # check that trying to move to a spot with an enemy piece fails
+    checkers.reset()
+    assert checkers.move((2, 1), (3, 2))
+    assert checkers.move((3, 2), (4, 3))
+    assert not checkers.move((4, 3), (5, 4))
+
+    checkers.reset()
+    assert not checkers.move((4, 3), (5, 4))
     # check that the board is not mutated when failing
     assert np.array_equiv(checkers.board, np.array([
         [empty, p1_norm, empty, p1_norm, empty, p1_norm, empty, p1_norm],
@@ -218,9 +366,3 @@ def test_simple_normal_move():
         [empty, p2_norm, empty, p2_norm, empty, p2_norm, empty, p2_norm],
         [p2_norm, empty, p2_norm, empty, p2_norm, empty, p2_norm, empty],
     ], dtype=np.int8))
-
-    # check that trying to move to a spot with an enemy piece fails
-    checkers.reset()
-    assert checkers.move((2, 1), (3, 2))
-    assert checkers.move((3, 2), (4, 3))
-    assert not checkers.move((4, 3), (5, 4))
