@@ -441,3 +441,60 @@ def test_execute_turn():
     assert checkers.p2_score == 0
     assert checkers.current_player == Checkers.PLAYER_TWO
 
+    # Do the contrived example above with the 3 jumps and check that either path gives the same result
+    checkers.reset()
+    checkers.board.fill(empty)
+    checkers.switch_turns()
+    checkers.board[5][4] = p2_king
+    checkers.board[4][3] = p1_norm
+    checkers.board[4][5] = p1_norm
+    checkers.board[2][3] = p1_norm
+    checkers.board[2][5] = p1_norm
+
+    assert checkers.execute_turn(piece=(5, 4), moves=[(3, 2), (1, 4), (3, 6), (5, 4)], move_type='jump')
+    assert checkers.p2_score == 4
+    assert checkers.p1_score == 0
+    assert checkers.current_player == Checkers.PLAYER_ONE
+
+    checkers.reset()
+    checkers.board.fill(empty)
+    checkers.switch_turns()
+    checkers.board[5][4] = p2_king
+    checkers.board[4][3] = p1_king
+    checkers.board[4][5] = p1_king
+    checkers.board[2][3] = p1_king
+    checkers.board[2][5] = p1_king
+
+    assert checkers.execute_turn(piece=(5, 4), moves=[(3, 6), (1, 4), (3, 2), (5, 4)], move_type='jump')
+    assert checkers.p2_score == 8
+    assert checkers.p1_score == 0
+    assert checkers.current_player == Checkers.PLAYER_ONE
+
+    # Do a contrived example to check that we can get kings
+    checkers.reset()
+    checkers.board.fill(empty)
+    checkers.board[1][0] = p2_norm
+    checkers.board[1][2] = p2_norm
+    checkers.board[6][1] = p1_norm
+    checkers.board[6][3] = p1_norm
+    checkers.p1_score = 1
+    checkers.p2_score = 1
+
+    assert checkers.execute_turn(piece=(6, 1), moves=[(7, 0)])
+    assert checkers.p2_score == 0
+    assert checkers.p1_score == 1
+    assert checkers.board[7][0] == Checkers.P1_KING
+
+    assert checkers.execute_turn(piece=(1, 0), moves=[(0, 1)])
+    assert checkers.p2_score == 0
+    assert checkers.p1_score == 0
+    assert checkers.board[0][1] == Checkers.P2_KING
+
+    assert checkers.execute_turn(piece=(6, 3), moves=[(7, 2)])
+    assert checkers.execute_turn(piece=(1, 2), moves=[(0, 3)])
+    assert checkers.p2_score == 0
+    assert checkers.p1_score == 0
+    assert checkers.board[0][3] == Checkers.P2_NORMAL
+    assert checkers.board[7][2] == Checkers.P1_NORMAL
+    
+

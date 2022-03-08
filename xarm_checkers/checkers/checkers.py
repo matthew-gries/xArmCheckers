@@ -470,14 +470,11 @@ class Checkers:
             if (self.current_player == Checkers.PLAYER_ONE and not (enemy_piece == Checkers.P2_KING or enemy_piece == Checkers.P2_NORMAL)
                 or self.current_player == Checkers.PLAYER_TWO and not (enemy_piece == Checkers.P1_KING or enemy_piece == Checkers.P1_NORMAL)):
                 return False
-            if self.board[next_pos[0]][next_pos[1]] != Checkers.EMPTY:
+            if self.board[next_pos[0]][next_pos[1]] != Checkers.EMPTY and next_pos != start:
                 return False
+            current_pos = next_pos
 
-        last_spot = jumps[-1]
-        if self.board[last_spot[0]][last_spot[1]] != Checkers.EMPTY:
-            return False
-        else:
-            return True
+        return True
 
     def _execute_jumps(self, start: Tuple[int, int], jumps: List[Tuple[int, int]]) -> None:
         """
