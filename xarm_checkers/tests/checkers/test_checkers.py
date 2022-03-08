@@ -121,6 +121,19 @@ def test_winner():
     board[board == Checkers.P2_NORMAL] = Checkers.EMPTY
     assert checkers.winner() == Checkers.PLAYER_ONE
 
+    checkers.reset()
+
+    # box in player one and confirm that player two wins
+    checkers.board.fill(empty)
+    checkers.board[0][1] = p1_norm
+    checkers.board[1][0] = p2_norm
+    checkers.board[1][2] = p2_norm
+    checkers.board[2][3] = p2_norm
+
+    assert checkers.winner() == Checkers.PLAYER_TWO
+    checkers.switch_turns()
+    assert checkers.winner() == Checkers.PLAYER_TWO
+
 
 def test_is_game_over():
     
@@ -289,7 +302,42 @@ def test_legal_moves_normal_piece_jumps():
     assert [(4, 1)] in jump2_2_3
 
 
-def test_simple_normal_move():
+def test_legal_moves_king_piece_jumps():
+
+    checkers = Checkers()
+    # make a contrived example where there is exactly one jump in each diagonal direction
+    checkers.board.fill(empty)
+    checkers.board[4][3] = p1_king
+    checkers.board[3][2] = p2_norm
+    checkers.board[3][4] = p2_norm
+    checkers.board[5][2] = p2_king
+    checkers.board[5][4] = p2_king
+
+    jump4 = checkers.get_legal_moves((4, 3))
+    assert len(jump4) == 4
+    assert [(2, 1)] in jump4
+    assert [(2, 5)] in jump4
+    assert [(6, 1)] in jump4
+    assert [(6, 5)] in jump4
+
+    # make a contrived example where player two makes a sequence of jumps, in differnt directions
+    # there are two answers to this depending on if you start to the left or the right
+    checkers.reset()
+    checkers.board.fill(empty)
+    checkers.switch_turns()
+    checkers.board[5][4] = p2_king
+    checkers.board[4][3] = p1_norm
+    checkers.board[4][5] = p1_norm
+    checkers.board[2][3] = p1_norm
+    checkers.board[2][5] = p1_norm
+
+    jump2 = checkers.get_legal_moves((5, 4))
+    assert len(jump2) == 2
+    assert [(3, 2), (1, 4), (3, 6), (5, 4)] in jump2
+    assert [(3, 6), (1, 4), (3, 2), (5, 4)] in jump2
+
+
+def test_move():
     # test that simple moves work
 
     checkers = Checkers()
@@ -366,3 +414,30 @@ def test_simple_normal_move():
         [empty, p2_norm, empty, p2_norm, empty, p2_norm, empty, p2_norm],
         [p2_norm, empty, p2_norm, empty, p2_norm, empty, p2_norm, empty],
     ], dtype=np.int8))
+
+def test_execute_turn():
+
+    checkers = Checkers()
+
+    # Do a single move for p1 and p2
+    assert checkers.p1_score == 0
+    assert checkers.p2_score == 0
+    assert checkers.current_player == Checkers.PLAYER_ONE
+
+    assert checkers.execute_turn(piece=(2, 1), moves=[(3, 2)])
+    assert checkers.p1_score == 0
+    assert checkers.p2_score == 0
+    assert checkers.current_player == Checkers.PLAYER_TWO
+
+    assert checkers.execute_turn(piece=(5, 4), moves=[(4, 3)])
+    assert checkers.p1_score == 0
+    assert checkers.p2_score == 0
+    assert checkers.current_player == Checkers.PLAYER_ONE
+
+    # Check we can make the jump as player 1, and check we cant do a normal move
+    assert not checkers.execute_turn(piece=(3, 2), moves=[(4, 1)])
+    assert checkers.execute_turn(piece=(3, 2), moves=[(5,4)], move_type='jump')
+    assert checkers.p1_score == 1
+    assert checkers.p2_score == 0
+    assert checkers.current_player == Checkers.PLAYER_TWO
+
