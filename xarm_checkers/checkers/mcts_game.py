@@ -2,12 +2,12 @@ from checkers.game import Game
 from typing import List
 import numpy as np
 
-from ..mcts.mcts_checkers import CheckersGameState
+from xarm_checkers.mcts.mcts_checkers import CheckersGameState
 from mctspy.tree.nodes import TwoPlayersGameMonteCarloTreeSearchNode
 from mctspy.tree.search import MonteCarloTreeSearch
 
 DEBUG = True
-NUMBER_SIMULATIONS = 10000
+NUMBER_SIMULATIONS = 10
 PLAYER_ONE = 1
 PLAYER_TWO = 2
 
@@ -71,11 +71,15 @@ def parse_input(input_string: str) -> List[int]:
     """
 
     input_pieces = input_string.split()
-    moves = [input_pieces[0], input_pieces[1]]
+    moves = [int(input_pieces[0]), int(input_pieces[1])]
     return moves
 
 if __name__ == "__main__":
     checkers = Game()
+    # set up initial MCTS
+    mcts_state = CheckersGameState(checkers=checkers)
+    mcts_root = TwoPlayersGameMonteCarloTreeSearchNode(state=mcts_state)
+    mcts = MonteCarloTreeSearch(mcts_root)
 
     player = PLAYER_ONE
 
@@ -100,20 +104,26 @@ if __name__ == "__main__":
             
             # Check if move is valid, if not go back to loop start
             if move not in checkers.get_possible_moves():
-                print("Invalid move requested!")
+                print("Invalid move requested by player 1!")
                 continue
 
             # Perform the requested move
             checkers.move(move)
             player = PLAYER_TWO
         else:
-            mcts_state = CheckersGameState(checkers=checkers)
-            mcts_root = TwoPlayersGameMonteCarloTreeSearchNode(state=mcts_state)
-            mcts = MonteCarloTreeSearch(mcts_root)
-            action = mcts.best_action(NUMBER_SIMULATIONS)
-            checkers.move(action.move)
+            optimal_next_node = None
+            try:
+                optimal_next_node = mcts.best_action(
+                    simulations_number=NUMBER_SIMULATIONS
+                )
+            except Exception as e:
+                print("Invalid move requested by player 2!")
+                if DEBUG:
+                    print(e)
+                continue
+            checkers = optimal_next_node.state.checkers
+            mcts = MonteCarloTreeSearch(node=optimal_next_node)
             player = PLAYER_ONE
-
 
     # Print final state of game
     print(render_game(checkers))

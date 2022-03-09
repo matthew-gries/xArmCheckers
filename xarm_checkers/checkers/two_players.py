@@ -64,7 +64,7 @@ def parse_input(input_string: str) -> List[int]:
     """
 
     input_pieces = input_string.split()
-    moves = [input_pieces[0], input_pieces[1]]
+    moves = [int(input_pieces[0]), int(input_pieces[1])]
     return moves
 
 if __name__ == "__main__":
