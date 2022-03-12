@@ -7,7 +7,8 @@ from mctspy.tree.nodes import TwoPlayersGameMonteCarloTreeSearchNode
 from mctspy.tree.search import MonteCarloTreeSearch
 
 DEBUG = True
-NUMBER_SIMULATIONS = 10
+NUMBER_SIMULATIONS = 500
+C = 1.4
 PLAYER_ONE = 1
 PLAYER_TWO = 2
 
@@ -80,6 +81,8 @@ if __name__ == "__main__":
     mcts_state = CheckersGameState(checkers=checkers)
     mcts_root = TwoPlayersGameMonteCarloTreeSearchNode(state=mcts_state)
     mcts = MonteCarloTreeSearch(mcts_root)
+    mcts.best_action(simulations_number=NUMBER_SIMULATIONS)
+    mcts_node = mcts_root
 
     player = PLAYER_ONE
 
@@ -109,21 +112,42 @@ if __name__ == "__main__":
 
             # Perform the requested move
             checkers.move(move)
-            player = PLAYER_TWO
+            player = checkers.whose_turn()
         else:
-            optimal_next_node = None
-            try:
-                optimal_next_node = mcts.best_action(
-                    simulations_number=NUMBER_SIMULATIONS
-                )
-            except Exception as e:
-                print("Invalid move requested by player 2!")
+            # need to check the player 2 node that has the current state of the board
+            node_with_current_state = None
+            # this is kind of a hack but we can compare the string inputs pretty easily
+            current_state = render_game(checkers=checkers)
+            for node in mcts_node.children:
+                assert node.state.next_to_move == -1
+                state = render_game(checkers=node.state.checkers)
+                if np.array_equal(current_state, state):
+                    node_with_current_state = node
+                    break
+            # TODO what do we do with node_with_current_state is None? Maybe try rerunning
+            # the tree search from this node
+            if node_with_current_state is None:
                 if DEBUG:
-                    print(e)
-                continue
-            checkers = optimal_next_node.state.checkers
-            mcts = MonteCarloTreeSearch(node=optimal_next_node)
-            player = PLAYER_ONE
+                    print("Couldn't find the current state from the previous node!")
+                # Take the state (currently this player's turn) and run a new instance of MCTS, 
+                current_mcts_state = CheckersGameState(checkers=checkers)
+                current_mcts_root = TwoPlayersGameMonteCarloTreeSearchNode(state=current_mcts_state)
+                mcts = MonteCarloTreeSearch(current_mcts_root)
+                mcts.best_action(simulations_number=NUMBER_SIMULATIONS)
+                node_with_current_state = current_mcts_root
+            next_node = None
+            try:
+                next_node = node_with_current_state.best_child()
+            except Exception as e:
+                if DEBUG:
+                    print(f"Caught exception: {e}")
+                    print("Couldn't find a next state to go to!")
+                mcts = MonteCarloTreeSearch(node_with_current_state)
+                mcts.best_action(simulations_number=NUMBER_SIMULATIONS)
+                next_node = node_with_current_state.best_child()
+            checkers = next_node.state.checkers
+            mcts_node = next_node
+            player = checkers.whose_turn()
 
     # Print final state of game
     print(render_game(checkers))
