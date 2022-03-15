@@ -1,9 +1,10 @@
 from typing import Tuple, List, Optional, Dict
 import time
-import glob
 import numpy as np
 import pybullet as pb
 import pybullet_data
+
+from xarm_checkers.sim.checkers_board import add_checkerboard
 
 class RobotArm:
     GRIPPER_CLOSED = 0.
@@ -315,7 +316,7 @@ class TopDownGraspingEnv:
         self.robot = RobotArm()
 
         # add board
-        self.board_id = pb.loadURDF("assets/urdf/board.urdf")
+        self.board_id = add_checkerboard()
         self.board_height = 0.02
         pb.changeDynamics(self.board_id, -1,
                           lateralFriction=1,
@@ -330,8 +331,8 @@ class TopDownGraspingEnv:
         self.board_positions = np.zeros((8, 8, 2))
         for i in range(8):
             for j in range(8):
-                self.board_positions[i][j][0] = self.workspace[0][0] + (2*i - 1)*(self.board_dim/16)
-                self.board_positions[i][j][1] = self.workspace[0][1] + (2*j - 1)*(self.board_dim/16)
+                self.board_positions[i][j][0] = self.workspace[0][0] + (2*i + 1)*(self.board_dim/16)
+                self.board_positions[i][j][1] = self.workspace[0][1] + (2*j + 1)*(self.board_dim/16)
 
         self.white_pieces_ids = []
         self.yellow_pieces_ids = []
@@ -446,13 +447,6 @@ class TopDownGraspingEnv:
             quat = pb.getQuaternionFromEuler((0,0,0))
             pb.resetBasePositionAndOrientation(piece_id, pos, quat)
 
-
-    def set_board_texture(self) -> None:
-        '''Set the texture of the board
-        '''
-        board_texture_id = pb.loadTexture('assets/textures/board.png')
-        pb.changeVisualShape(self.board_id, -1, -1, textureUniqueId=board_texture_id, rgbaColor=(1,1,1,1))
-
     def take_picture(self) -> np.ndarray:
         '''Takes picture using camera
 
@@ -519,7 +513,6 @@ def test_checkers_board_object():
     '''
     env = TopDownGraspingEnv(True)
     env.set_board_position()
-    env.set_board_texture()
     env.set_pieces()
 
     while 1:
