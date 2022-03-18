@@ -5,6 +5,7 @@ import pybullet as pb
 import pybullet_data
 
 from xarm_checkers.sim.checkers_board import add_checkerboard
+from checkers.game import Game
 
 class RobotArm:
     GRIPPER_CLOSED = 0.
@@ -264,7 +265,7 @@ class Camera:
         self.view_mtx = pb.computeViewMatrix(cameraEyePosition=eye_pos,
                                              cameraTargetPosition=target_pos,
                                             cameraUpVector=(0,1,0))
-        self.proj_mtx = pb.computeProjectionMatrixFOV(fov=42,
+        self.proj_mtx = pb.computeProjectionMatrixFOV(fov=25,
                                                       aspect=1,
                                                       nearVal=0.01,
                                                       farVal=1)
@@ -328,6 +329,7 @@ class TopDownGraspingEnv:
                                    (0.20, 0.05))) #  (max_x, max_y))
         self.board_dim = self.workspace[1][0] - self.workspace[0][0]
 
+        # maps row, col to x, y positions on board
         self.board_positions = np.zeros((8, 8, 2))
         for i in range(8):
             for j in range(8):
@@ -337,6 +339,7 @@ class TopDownGraspingEnv:
         self.white_pieces_ids = []
         self.yellow_pieces_ids = []
         self.piece_height = 0.01
+        self.grasp_height = self.board_height + (self.piece_height * (3/4))
 
         for _ in range(12):
             white_id = pb.loadURDF("assets/urdf/white_piece.urdf")
@@ -353,11 +356,24 @@ class TopDownGraspingEnv:
             self.white_pieces_ids.append(white_id)
             self.yellow_pieces_ids.append(yellow_id)
 
+        # Keeps track of the positions on the checkers board as defined by the `Checkers` class implementation
+        self.yellow_checkers_board_spots = set()
+        self.white_checkers_board_spots = set()
+        # mapping between positions on the checkers board as defined by the `Checkers` class implementation
+        # and (row, column) board positions
+        # 
+        # For example, player 1's (yellow) first piece is at position 1, which maps to (0, 1) in (row, col)
+        # The call to `set_pieces` will initialize these
+        self.board_spot_to_row_col = {}
+
         if render:
             self.draw_workspace()
 
         # add camera
         self.camera = Camera(self.workspace)
+
+        # checkers implementation
+        self.checkers = Game()
 
     def draw_workspace(self) -> None:
         '''This is just for visualization purposes, to help you with the object
@@ -393,22 +409,59 @@ class TopDownGraspingEnv:
             True if object was successfully grasped, False otherwise. It is up
             to you to decide how to determine success
         '''
-        # TODO have this reach for a checker piece
-        return False
-        # self.robot.move_arm_to_jpos(self.robot.home_arm_jpos)
-        # self.robot.set_gripper_state(self.robot.GRIPPER_OPENED)
+        self.robot.move_arm_to_jpos(self.robot.home_arm_jpos)
+        self.robot.set_gripper_state(self.robot.GRIPPER_OPENED)
 
-        # pos = np.array((x, y, self.grasp_height))
-        # self.robot.move_gripper_to(pos, theta)
-        # self.robot.set_gripper_state(self.robot.GRIPPER_CLOSED)
-        # self.robot.move_arm_to_jpos(self.robot.home_arm_jpos)
+        pos = np.array((x, y, self.grasp_height))
+        self.robot.move_gripper_to(pos, theta)
+        self.robot.set_gripper_state(self.robot.GRIPPER_CLOSED)
+        self.robot.move_arm_to_jpos(self.robot.home_arm_jpos)
 
-        # # check if object is above plane
+        # TODO figure out how to check for success
+        # check if object is above plane
         # min_object_height = 0.05
         # obj_height = pb.getBasePositionAndOrientation(self.object_id)[0][2]
         # success = obj_height > min_object_height
 
-        # return success
+        return True
+
+    def place_piece(self, x, y, theta) -> bool:
+
+        # I THINK its board height + (piece height / 2), not sure on the theta
+        self.robot.move_gripper_to([x, y, self.grasp_height], theta)
+        self.robot.set_gripper_state(self.robot.GRIPPER_OPENED)
+
+        return True # how to check this if we even need to
+
+    def move_piece(self, from_spot: int, to_spot: int):
+        """
+        Move a piece from the given spot on the board to the given spot. A `spot` in this
+        context refers to how the spots are numbered given .
+
+        This doesn't affect anything about the state of the game, just physically moves pieces
+        """
+
+        from_row, from_col = self.board_spot_to_row_col[from_spot]
+        to_row, to_col = self.board_spot_to_row_col[to_spot]
+
+        from_x, from_y = self.board_positions[from_row][from_col]
+        to_x, to_y = self.board_positions[to_row][to_col]
+
+        # TODO what theta works
+        self.perform_grasp(from_x, from_y, 0)
+        # TODO move gripper to center of board and up a little above the board
+        x = (self.workspace[0][0] + self.workspace[1][0]) / 2
+        y = (self.workspace[0][1] + self.workspace[1][1]) / 2
+        self.robot.move_gripper_to([x,y,0.5], 0);
+
+        # TODO move to the new piece
+        self.place_piece(to_x, to_y, 0)
+
+        # TODO move gripper to center of board and up a little above the board
+        x = (self.workspace[0][0] + self.workspace[1][0]) / 2
+        y = (self.workspace[0][1] + self.workspace[1][1]) / 2
+        self.robot.move_gripper_to([x,y,0.5], 0);
+        self.robot.set_gripper_state(self.robot.GRIPPER_CLOSED)
     
     def set_board_position(self) -> None:
         '''Center the board in the workspace
@@ -423,6 +476,7 @@ class TopDownGraspingEnv:
     def set_pieces(self) -> None:
         '''Place the initial pieces on the board
         '''
+        self.checkers = Game()
         initial_yellow = [
             (0, 1), (0, 3), (0, 5), (0, 7),
             (1, 0), (1, 2), (1, 4), (1, 6),
@@ -435,17 +489,30 @@ class TopDownGraspingEnv:
             (7, 0), (7, 2), (7, 4), (7, 6)
         ]
 
-        for piece_id, (i, j) in zip(self.yellow_pieces_ids, initial_yellow):
-            position = self.board_positions[i][j]
-            pos = np.array([position[0], position[1], self.board_height+(self.piece_height/2)])
-            quat = pb.getQuaternionFromEuler((0,0,0))
-            pb.resetBasePositionAndOrientation(piece_id, pos, quat)
+        initial_empty = [
+            (3, 0), (3, 2), (3, 4), (3, 6),
+            (4, 1), (4, 3), (4, 5), (4, 7)
+        ]
 
-        for piece_id, (i, j) in zip(self.white_pieces_ids, initial_white):
+        for piece_id, (i, j), checkers_position in zip(self.yellow_pieces_ids, initial_yellow, range(1, 13)):
             position = self.board_positions[i][j]
             pos = np.array([position[0], position[1], self.board_height+(self.piece_height/2)])
             quat = pb.getQuaternionFromEuler((0,0,0))
             pb.resetBasePositionAndOrientation(piece_id, pos, quat)
+            self.yellow_checkers_board_spots.add((i, j))
+            self.board_spot_to_row_col[checkers_position] = (i, j)
+
+        for piece_id, (i, j), checkers_position in zip(self.white_pieces_ids, initial_white, range(21, 33)):
+            position = self.board_positions[i][j]
+            pos = np.array([position[0], position[1], self.board_height+(self.piece_height/2)])
+            quat = pb.getQuaternionFromEuler((0,0,0))
+            pb.resetBasePositionAndOrientation(piece_id, pos, quat)
+            self.white_checkers_board_spots.add((i, j))
+            self.board_spot_to_row_col[checkers_position] = (i, j)
+
+        for (i, j), checkers_position in zip(initial_empty, range(13, 21)):
+            self.board_spot_to_row_col[checkers_position] = (i, j)
+
 
     def take_picture(self) -> np.ndarray:
         '''Takes picture using camera
@@ -519,7 +586,21 @@ def test_checkers_board_object():
         env.take_picture()
         # time.sleep(0.5)
 
+def test_move_piece():
+    env = TopDownGraspingEnv(True)
+    env.set_board_position()
+    env.set_pieces()
+
+    for _ in range(1000):
+        env.take_picture()
+
+    # This is one of the first moves you can make
+    env.move_piece(9, 13)
+
+    while 1:
+        env.take_picture()
 
 if __name__ == "__main__":
-    test_checkers_board_object()
+    test_move_piece()
+    # test_checkers_board_object()
     # check_workspace_reachability()
