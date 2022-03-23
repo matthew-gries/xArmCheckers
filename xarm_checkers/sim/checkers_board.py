@@ -26,9 +26,15 @@ def add_checkerboard(
     grid_colors: List=((0,0,0),(255,0,0)),
 ) -> int:
     # create body
+    coll_id = pb.createCollisionShape(
+        pb.GEOM_BOX,
+        halfExtents=(grid_size/2, grid_size/2, 0.01)
+    )
     vis_id = pb.createVisualShape(pb.GEOM_BOX,
                                   halfExtents=(grid_size/2, grid_size/2, 0.01))
-    obj_id = pb.createMultiBody(0, -1, vis_id)
+    obj_id = pb.createMultiBody(0, coll_id, vis_id)
+
+    # TODO add collision object
 
     # place pattern in lower right corner of image, this seems to work
     # for adding textures to the top of any GEOM_BOX

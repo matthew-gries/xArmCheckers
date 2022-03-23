@@ -28,8 +28,11 @@ class RobotArm:
 
         self.arm_joint_limits = np.array(((-2, -1.58, -2, -1.8, -2),
                                           ( 2,  1.58,  2,  2.0,  2)))
-        self.gripper_joint_limits = np.array(((0.05,0.05),
-                                              (1.38, 1.38)))
+        # self.gripper_joint_limits = np.array(((0.05,0.05),
+        #                                       (1.38, 1.38)))
+        # Don't open the gripper as much
+        self.gripper_joint_limits = np.array(((0.075,0.075),
+                                              (0.25, 0.25)))
 
         # chosen to move arm out of view of camera
         self.home_arm_jpos = [0., -1.1, 1.4, 1.3, 0.]
@@ -318,7 +321,7 @@ class TopDownGraspingEnv:
 
         # add board
         self.board_id = add_checkerboard()
-        self.board_height = 0.02
+        self.board_height = 0.01
         pb.changeDynamics(self.board_id, -1,
                           lateralFriction=1,
                           spinningFriction=0.005,
@@ -339,7 +342,7 @@ class TopDownGraspingEnv:
         self.white_pieces_ids = []
         self.yellow_pieces_ids = []
         self.piece_height = 0.01
-        self.grasp_height = self.board_height + (self.piece_height * (3/4))
+        self.grasp_height = self.board_height + self.piece_height + 0.005
 
         for _ in range(12):
             white_id = pb.loadURDF("assets/urdf/white_piece.urdf")
@@ -411,10 +414,28 @@ class TopDownGraspingEnv:
         '''
         self.robot.move_arm_to_jpos(self.robot.home_arm_jpos)
         self.robot.set_gripper_state(self.robot.GRIPPER_OPENED)
+        
+        # add a little bit of offset
+        grasp_height_offset = self.grasp_height + 0.05
+
+        # manually move the gripper above the spot so we can move it directly down
+        arm_pos, _ = self.robot.solve_ik(
+            pos=[x, y, grasp_height_offset],
+            quat=pb.getQuaternionFromEuler((0,-np.pi,theta))
+        )
+        self.robot.move_arm_to_jpos(arm_jpos=arm_pos)
 
         pos = np.array((x, y, self.grasp_height))
         self.robot.move_gripper_to(pos, theta)
         self.robot.set_gripper_state(self.robot.GRIPPER_CLOSED)
+
+        # manually move the gripper up without moving it to the sides
+        arm_pos, _ = self.robot.solve_ik(
+            pos=[x, y, grasp_height_offset],
+            quat=pb.getQuaternionFromEuler((0,-np.pi,theta))
+        )
+        self.robot.move_arm_to_jpos(arm_jpos=arm_pos)
+
         self.robot.move_arm_to_jpos(self.robot.home_arm_jpos)
 
         # TODO figure out how to check for success
@@ -427,16 +448,36 @@ class TopDownGraspingEnv:
 
     def place_piece(self, x, y, theta) -> bool:
 
-        # I THINK its board height + (piece height / 2), not sure on the theta
+        # add a little bit of offset
+        grasp_height_offset = self.grasp_height + 0.05
+
+        self.robot.move_arm_to_jpos(self.robot.home_arm_jpos)
+
+        # manually move the gripper above the spot so we can move it directly down
+        arm_pos, _ = self.robot.solve_ik(
+            pos=[x, y, grasp_height_offset],
+            quat=pb.getQuaternionFromEuler((0,-np.pi,theta))
+        )
+        self.robot.move_arm_to_jpos(arm_jpos=arm_pos)
+
         self.robot.move_gripper_to([x, y, self.grasp_height], theta)
         self.robot.set_gripper_state(self.robot.GRIPPER_OPENED)
+
+        # manually move the gripper up without moving it to the sides
+        arm_pos, _ = self.robot.solve_ik(
+            pos=[x, y, grasp_height_offset],
+            quat=pb.getQuaternionFromEuler((0,-np.pi,theta))
+        )
+        self.robot.move_arm_to_jpos(arm_jpos=arm_pos)
+
+        self.robot.move_arm_to_jpos(self.robot.home_arm_jpos)
 
         return True # how to check this if we even need to
 
     def move_piece(self, from_spot: int, to_spot: int):
         """
         Move a piece from the given spot on the board to the given spot. A `spot` in this
-        context refers to how the spots are numbered given .
+        context refers to how the spots are numbered given.
 
         This doesn't affect anything about the state of the game, just physically moves pieces
         """
@@ -447,21 +488,10 @@ class TopDownGraspingEnv:
         from_x, from_y = self.board_positions[from_row][from_col]
         to_x, to_y = self.board_positions[to_row][to_col]
 
-        # TODO what theta works
+        # TODO what theta works, 0 might be ok
         self.perform_grasp(from_x, from_y, 0)
-        # TODO move gripper to center of board and up a little above the board
-        x = (self.workspace[0][0] + self.workspace[1][0]) / 2
-        y = (self.workspace[0][1] + self.workspace[1][1]) / 2
-        self.robot.move_gripper_to([x,y,0.5], 0);
-
-        # TODO move to the new piece
         self.place_piece(to_x, to_y, 0)
 
-        # TODO move gripper to center of board and up a little above the board
-        x = (self.workspace[0][0] + self.workspace[1][0]) / 2
-        y = (self.workspace[0][1] + self.workspace[1][1]) / 2
-        self.robot.move_gripper_to([x,y,0.5], 0);
-        self.robot.set_gripper_state(self.robot.GRIPPER_CLOSED)
     
     def set_board_position(self) -> None:
         '''Center the board in the workspace
@@ -496,7 +526,7 @@ class TopDownGraspingEnv:
 
         for piece_id, (i, j), checkers_position in zip(self.yellow_pieces_ids, initial_yellow, range(1, 13)):
             position = self.board_positions[i][j]
-            pos = np.array([position[0], position[1], self.board_height+(self.piece_height/2)])
+            pos = np.array([position[0], position[1], self.board_height+(self.piece_height/2) + 0.2])
             quat = pb.getQuaternionFromEuler((0,0,0))
             pb.resetBasePositionAndOrientation(piece_id, pos, quat)
             self.yellow_checkers_board_spots.add((i, j))
@@ -504,7 +534,7 @@ class TopDownGraspingEnv:
 
         for piece_id, (i, j), checkers_position in zip(self.white_pieces_ids, initial_white, range(21, 33)):
             position = self.board_positions[i][j]
-            pos = np.array([position[0], position[1], self.board_height+(self.piece_height/2)])
+            pos = np.array([position[0], position[1], self.board_height+(self.piece_height/2) + 0.2])
             quat = pb.getQuaternionFromEuler((0,0,0))
             pb.resetBasePositionAndOrientation(piece_id, pos, quat)
             self.white_checkers_board_spots.add((i, j))
@@ -584,17 +614,11 @@ def test_checkers_board_object():
 
     while 1:
         env.take_picture()
-        # time.sleep(0.5)
 
 def test_move_piece():
     env = TopDownGraspingEnv(True)
     env.set_board_position()
     env.set_pieces()
-
-    for _ in range(1000):
-        env.take_picture()
-
-    # This is one of the first moves you can make
     env.move_piece(9, 13)
 
     while 1:
