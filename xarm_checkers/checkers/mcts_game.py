@@ -8,6 +8,7 @@ from mctspy.tree.search import MonteCarloTreeSearch
 
 DEBUG = True
 NUMBER_SIMULATIONS = 500
+SIMULATION_SECONDS = 30
 C = 1.4
 PLAYER_ONE = 1
 PLAYER_TWO = 2
@@ -81,7 +82,7 @@ if __name__ == "__main__":
     mcts_state = CheckersGameState(checkers=checkers)
     mcts_root = TwoPlayersGameMonteCarloTreeSearchNode(state=mcts_state)
     mcts = MonteCarloTreeSearch(mcts_root)
-    mcts.best_action(simulations_number=NUMBER_SIMULATIONS)
+    mcts.best_action(simulations_number=SIMULATION_SECONDS)
     mcts_node = mcts_root
 
     player = PLAYER_ONE
@@ -133,7 +134,7 @@ if __name__ == "__main__":
                 current_mcts_state = CheckersGameState(checkers=checkers)
                 current_mcts_root = TwoPlayersGameMonteCarloTreeSearchNode(state=current_mcts_state)
                 mcts = MonteCarloTreeSearch(current_mcts_root)
-                mcts.best_action(simulations_number=NUMBER_SIMULATIONS)
+                mcts.best_action(simulations_number=SIMULATION_SECONDS)
                 node_with_current_state = current_mcts_root
             next_node = None
             try:
@@ -143,7 +144,7 @@ if __name__ == "__main__":
                     print(f"Caught exception: {e}")
                     print("Couldn't find a next state to go to!")
                 mcts = MonteCarloTreeSearch(node_with_current_state)
-                mcts.best_action(simulations_number=NUMBER_SIMULATIONS)
+                mcts.best_action(simulations_number=SIMULATION_SECONDS)
                 next_node = node_with_current_state.best_child()
             checkers = next_node.state.checkers
             mcts_node = next_node
