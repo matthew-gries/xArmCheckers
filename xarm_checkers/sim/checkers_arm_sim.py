@@ -435,7 +435,6 @@ class TopDownGraspingEnv:
             quat=pb.getQuaternionFromEuler((0,-np.pi,theta))
         )
         self.robot.move_arm_to_jpos(arm_jpos=arm_pos)
-
         self.robot.move_arm_to_jpos(self.robot.home_arm_jpos)
 
         # TODO figure out how to check for success
