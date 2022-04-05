@@ -103,6 +103,7 @@ dependencies:
     - serial==0.0.97
     - zipp==3.7.0
     - mctspy
+    - tqdm
     - git+https://github.com/ImparaAI/checkers.git
     - pytest==7.0.1
     - -e .
