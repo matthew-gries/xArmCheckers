@@ -54,6 +54,9 @@ class CheckersEnv(gym.Env):
         self._fill_move_map()
 
     def _fill_move_map(self):
+        """
+        Fill the move map that can be used to get potential moves from a given position
+        """
 
         for i in range(1, 33):
             for j in range(4):
@@ -213,6 +216,9 @@ class CheckersEnv(gym.Env):
         return self.t_step >= self.episode_length \
                 or self.checkers_game.is_over()
 
+    def render(self) -> None:
+        print(render_game(self.checkers_game))
+
     def get_action_from_action_space_idx(self, from_pos: int, idx: int) -> Tuple[int, int]:
         """
         Get the action from the given position in the current state to the position that is in the
@@ -247,7 +253,7 @@ def watch_policy(env: CheckersEnv, policy: Optional[Callable]=None):
     while 1:
         a = policy(s)
         sp, r, done, _ = env.step(a)
-        env.render(0.1)
+        # env.render()
 
         s = sp
         if done:
@@ -256,7 +262,7 @@ def watch_policy(env: CheckersEnv, policy: Optional[Callable]=None):
 
 
 class QNetwork(nn.Module):
-    def __init__(self, env: CheckersEnv) -> None:
+    def __init__(self) -> None:
         '''Q-Network instantiated as 3-layer MLP with 64 units
         '''
         super().__init__()
