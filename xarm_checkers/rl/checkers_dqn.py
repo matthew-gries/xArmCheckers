@@ -1,21 +1,21 @@
-from typing import Tuple, Dict, Optional, List, Callable
+from typing import Tuple, Dict, Optional, Callable
+import copy
 import time
 import numpy as np
 import torch
 import torch.nn as nn
 from torch import Tensor
 import gym
+import gym.spaces
 import matplotlib.pyplot as plt
 from tqdm import tqdm as tqdm
 from checkers.game import Game
 
-from xarm_checkers.checkers.utils import game_as_numpy
-
+from xarm_checkers.checkers.utils import game_as_numpy, render_game
 
 class CheckersEnv(gym.Env):
     def __init__(self,
                  episode_length: int=50,
-                 action_step: float=0.035,
                 ) -> None:
         '''Gym checkers environment
 
@@ -23,17 +23,108 @@ class CheckersEnv(gym.Env):
         ----------
         episode_length
             number of actions that agent can take before environment is reset
-        action_step
-            delta joint position that is applied to a single joint while
-            performing an action. If you make this too small, then the agent
-            wont be able to reach the goal within the episode length; if you
-            make this too large, then the agent wont have enough precision to
-            achieve goal position
         '''
 
         self.checkers_game = Game()
-        self.action_step = action_step
         self.episode_length = episode_length
+
+        # 32 element observation space, each element represents a spot on the checkers board a piece can be at (0 - 31)
+        # Values correspond to the following:
+        # * -2 -> P2 king
+        # * -1 -> P2 normal
+        # * 0  -> Empty
+        # * 1  -> P1 normal
+        # * 2  -> P1 king
+        self.observation_space = gym.spaces.Box(low=-2, high=2, shape=(32,), dtype=np.int8)
+
+        # 4 x 32 actions space
+        # - First element is the space to move to (encoded as 0 - 31) if we are moving down and to the left
+        # - Second element is the space to move to (encoded as 0 - 31) if we are moving down and to the right
+        # - Third element is the space to move to (encoded as 0 - 31) if we are moving up and to the left
+        # - Fourth element is the space to move to (encoded as 0 - 31) if we are moving up and to the right
+        self.action_space = gym.spaces.Tuple([
+            gym.spaces.Discrete(32),
+            gym.spaces.Discrete(32),
+            gym.spaces.Discrete(32),
+            gym.spaces.Discrete(32)
+        ])
+
+        self._move_map = {i: {j: [] for j in range(4)} for i in range(1, 33)}
+
+        self._fill_move_map()
+
+    def _fill_move_map(self):
+
+        for i in range(1, 33):
+            for j in range(4):
+                # fill lower left
+                if j == 0:
+                    # nothing lower than these spots
+                    if i in range(29, 33):
+                        continue
+                    # nothing further left
+                    elif i in [5, 13, 21]:
+                        continue
+                    # just one piece
+                    elif i in [1, 9, 17, 25, 26, 27, 28]:
+                        self._move_map[i][j] = [i+4]
+                    # all other pieces
+                    elif i in [6, 7, 8, 14, 15, 16, 22, 23, 24]:
+                        self._move_map[i][j] = [i+3, i+7]
+                    else:
+                        self._move_map[i][j] = [i+4, i+7]
+                # fill lower right
+                elif j == 1:
+                    # nothing lower than these spots
+                    if i in range(29, 33):
+                        continue
+                    # nothing further right
+                    elif i in [4, 12, 20]:
+                        continue
+                    # just one piece
+                    elif i in [8, 16, 24]:
+                        self._move_map[i][j] = [i+4]
+                    elif i in [25, 26, 27]:
+                        self._move_map[i][j] = [i+5]
+                    # all other pieces
+                    elif i in [1, 2, 3, 9, 10, 11, 17, 18, 19]:
+                        self._move_map[i][j] = [i+5, i+9]
+                    else:
+                        self._move_map[i][j] = [i+4, i+9]
+                # fill upper left
+                if j == 2:
+                    # nothing higher than these spots
+                    if i in range(1, 5):
+                        continue
+                    # nothing further left
+                    elif i in [5, 13, 21, 29]:
+                        continue
+                    # just one piece
+                    elif i in [6, 7, 8]:
+                        self._move_map[i][j] = [i-5]
+                    elif i in [9, 17, 25]:
+                        self._move_map[i][j] = [i-4]
+                    # all other pieces
+                    elif i in [10, 11, 12, 18, 19, 20, 26, 27, 28]:
+                        self._move_map[i][j] = [i-4, i-9]
+                    else:
+                        self._move_map[i][j] = [i-5, i-9]
+                # fill upper right
+                if j == 3:
+                    # nothing higher than these spots
+                    if i in range(1, 5):
+                        continue
+                    # nothing further right
+                    elif i in [12, 20, 28]:
+                        continue
+                    # just one piece
+                    elif i in [5, 6, 7, 8, 16, 24, 32]:
+                        self._move_map[i][j] = [i-4]
+                    # all other pieces
+                    elif i in [9, 10, 11, 17, 18, 19, 25, 26, 27]:
+                        self._move_map[i][j] = [i-3, i-7]
+                    else:
+                        self._move_map[i][j] = [i-4, i-7]
 
     def reset(self) -> np.ndarray:
         '''Sets the game state to the initial state of checkers (TODO should we always do this)
@@ -43,11 +134,22 @@ class CheckersEnv(gym.Env):
         -------
         observation of the checkers game
         '''
-        # assign random start state
         self.checkers_game = Game()
         self.t_step = 0
 
         return self.get_obs()
+
+    @staticmethod
+    def _get_max_subsequent_jumps_count(game: Game, current_player: int, move: Tuple[int, int]) -> Tuple[int, Game]:
+        game.move(move)
+        if game.whose_turn() != current_player:
+            return 1, game
+        else:
+            moves = game.get_possible_moves()
+            res = [CheckersEnv._get_max_subsequent_jumps_count(copy.deepcopy(game), current_player, m) for m in moves]
+            counts = [r[0] for r in res]
+            idx = np.argmax(counts)
+            return 1 + res[idx][0], res[idx][1]
 
     def step(self, action: Tuple[int, int]) -> Tuple[np.ndarray, float, bool, Dict]:
         '''
@@ -55,8 +157,9 @@ class CheckersEnv(gym.Env):
         tuple where the first element is the 0-31 position to move from and the second position is
         the 0-31 position to move to)
 
-        TODO is the action space just the positions we can move to from a given position or is it any
-        position
+        If the action results in a jump, we take the sequence of jumps that results in the longest jump.
+
+        As such, the returned observation will always have a different player than the previous observation.
 
         Returns
         -------
@@ -65,16 +168,26 @@ class CheckersEnv(gym.Env):
         # assert self.action_space.contains(action)
         self.t_step += 1
 
+        prev_player = self.checkers_game.whose_turn()
+
+        # Make the move
         self.checkers_game.move(action)
+
+        # If we still have more jumps, recursively find the longest jump sequence
+        if self.checkers_game.whose_turn() == prev_player:
+            game = self.checkers_game
+            moves = game.get_possible_moves()
+            res = [CheckersEnv._get_max_subsequent_jumps_count(copy.deepcopy(game), prev_player, m) for m in moves]
+            counts = [r[0] for r in res]
+            idx = np.argmax(counts)
+            self.checkers_game = res[idx][1]
+            # TODO do we update t_step?
+
 
         obs = self.get_obs()
         reward = self.get_reward()
         done = self.is_done()
         info = {}
-        # info = {'success' : np.allclose(self.ee_pos, self.goal_ee_pos, atol=self.goal_tol)}
-
-        # for rendering
-        self.last_reward = reward
 
         return obs, reward, done, info
 
@@ -100,6 +213,24 @@ class CheckersEnv(gym.Env):
         return self.t_step >= self.episode_length \
                 or self.checkers_game.is_over()
 
+    def get_action_from_action_space_idx(self, from_pos: int, idx: int) -> Tuple[int, int]:
+        """
+        Get the action from the given position in the current state to the position that is in the
+        direction specified by the index (see the action space for what this means)
+
+        If a move cannot be made, returns None
+        """
+
+        potential_positions = self._move_map[from_pos][idx]
+        current_legal_moves = self.checkers_game.get_possible_moves()
+
+        # potential positions considers scenarios for moves and jumps, will be either one of the other
+        # in the legal moveset
+        for to_pos in potential_positions:
+            if (from_pos, to_pos) in current_legal_moves:
+                return (from_pos, to_pos)
+
+        return None
 
 def watch_policy(env: CheckersEnv, policy: Optional[Callable]=None):
     '''Rolls out policy in environment and renders in GUI.  If policy is not
@@ -125,26 +256,22 @@ def watch_policy(env: CheckersEnv, policy: Optional[Callable]=None):
 
 
 class QNetwork(nn.Module):
-    def __init__(self, state_dim: int, n_actions: int) -> None:
+    def __init__(self, env: CheckersEnv) -> None:
         '''Q-Network instantiated as 3-layer MLP with 64 units
-
-        Parameters
-        ----------
-        state_dim
-            length of state vector
-        n_actions
-            number of actions in action space
         '''
         super().__init__()
 
+        self.state_vector_length = 32
+        self.action_vector_length = 4 * 32
+
         self.layers = nn.Sequential(
-            nn.Linear(state_dim, 64),
+            nn.Linear(self.state_vector_length, 64),
             nn.ReLU(True),
             nn.Linear(64, 64),
             nn.ReLU(True),
             nn.Linear(64, 64),
             nn.ReLU(True),
-            nn.Linear(64, n_actions)
+            nn.Linear(64, self.action_vector_length)
         )
 
         self.loss_fn = nn.MSELoss()
@@ -164,10 +291,10 @@ class QNetwork(nn.Module):
 
     @torch.no_grad()
     def predict(self, s: Tensor) -> Tensor:
-        '''Computes argmax over q-function at given states
+        '''Get the q_values from the network, given the state
         '''
         q_vals = self.forward(s)
-        return torch.max(q_vals, dim=1)[1]
+        return q_vals    
 
     def compute_loss(self, q_pred: Tensor, q_target: Tensor) -> Tensor:
         return self.loss_fn(q_pred, q_target)
@@ -211,7 +338,7 @@ class ReplayBuffer:
 
 class Agent:
     def __init__(self,
-                 env: ReacherEnv,
+                 env: CheckersEnv,
                  gamma: float=1.,
                  learning_rate: float=5e-4,
                  buffer_size: int=50000,
@@ -238,10 +365,8 @@ class Agent:
         self.buffer = ReplayBuffer(buffer_size, self.env.observation_space.shape[0])
 
         self.device = device
-        self.network = QNetwork(self.env.observation_space.shape[0],
-                                self.env.action_space.n).to(device)
-        self.target_network = QNetwork(self.env.observation_space.shape[0],
-                                       self.env.action_space.n).to(device)
+        self.network = QNetwork().to(device)
+        self.target_network = QNetwork().to(device)
         self.hard_target_update()
 
         self.optim = torch.optim.Adam(self.network.parameters(),
@@ -333,12 +458,10 @@ class Agent:
         self.optim.step()
         return loss.item()
 
-    def select_action(self, state: np.ndarray, epsilon: float=0.) -> int:
-        '''Performs e-greedy action selection'''
-        if np.random.random() < epsilon:
-            return self.env.action_space.sample()
-        else:
-            return self.policy(state)
+    def select_action(self, state: np.ndarray, epsilon: float=0.) -> Tuple[int, int]:
+        '''Performs e-greedy action selection, TODO what type of action selection'''
+        # TODO random sampling -> do the same type of logic in policy
+        return self.policy(state)
 
     def compute_epsilon(self, fraction: float) -> float:
         '''Compute epsilon value based on fraction of training steps'''
@@ -349,14 +472,27 @@ class Agent:
         '''Copy weights of q-network to target q-network'''
         self.target_network.load_state_dict(self.network.state_dict())
 
-    def policy(self, state: np.ndarray) -> int:
-        '''Calculates argmax of Q-function at given state'''
+    def policy(self, state: np.ndarray) -> Tuple[int, int]:
+        '''Get the next action to take given the '''
         t_state = torch.tensor(state, dtype=torch.float32,
                                device=self.device).unsqueeze(0)
-        return self.network.predict(t_state).item()
+        q_values = self.network.predict(t_state, self.env)
+
+        q_value_idx = torch.argmax(q_values, dim=1)
+
+        from_pos = q_value_idx // 4
+        direction = q_value_idx % 4
+
+        action = self.env.get_action_from_action_space_idx(from_pos, direction)
+
+        # if the action is not legal, pick a random action
+        if action is None:
+            action = self.env.get_random_action()
+
+        return action
 
 if __name__ == "__main__":
-    env = ReacherEnv()
+    env = CheckersEnv()
 
     agent = Agent(env,
                   gamma=0.98,
@@ -371,7 +507,5 @@ if __name__ == "__main__":
                  )
     agent.train(20000)
 
-    pb.disconnect()
-    env = ReacherEnv(reward_type='dense', render=True)
     watch_policy(env, agent.policy)
 
