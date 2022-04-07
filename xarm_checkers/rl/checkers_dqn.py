@@ -1,3 +1,4 @@
+from imp import acquire_lock
 from typing import Tuple, Dict, Optional, Callable
 import copy
 import time
@@ -42,12 +43,7 @@ class CheckersEnv(gym.Env):
         # - Second element is the space to move to (encoded as 0 - 31) if we are moving down and to the right
         # - Third element is the space to move to (encoded as 0 - 31) if we are moving up and to the left
         # - Fourth element is the space to move to (encoded as 0 - 31) if we are moving up and to the right
-        self.action_space = gym.spaces.Tuple([
-            gym.spaces.Discrete(32),
-            gym.spaces.Discrete(32),
-            gym.spaces.Discrete(32),
-            gym.spaces.Discrete(32)
-        ])
+        self.action_space = gym.spaces.Box(shape=(4*32,))
 
         self._move_map = {i: {j: [] for j in range(4)} for i in range(1, 33)}
 
@@ -154,7 +150,7 @@ class CheckersEnv(gym.Env):
             idx = np.argmax(counts)
             return 1 + res[idx][0], res[idx][1]
 
-    def step(self, action: Tuple[int, int]) -> Tuple[np.ndarray, float, bool, Dict]:
+    def step(self, action: int) -> Tuple[np.ndarray, float, bool, Dict]:
         '''
         Performs an action by moving from a position to another position (represented as a
         tuple where the first element is the 0-31 position to move from and the second position is
@@ -173,8 +169,18 @@ class CheckersEnv(gym.Env):
 
         prev_player = self.checkers_game.whose_turn()
 
+        from_pos = action // 4
+        direction = action % 4
+
+        action_tuple = self.env.get_action_from_action_space_idx(from_pos, direction)
+
+        # if the action is not legal, pick a random action
+        if action_tuple is None:
+            # TODO do get random action
+            action_tuple = self.env.get_random_action()
+
         # Make the move
-        self.checkers_game.move(action)
+        self.checkers_game.move(action_tuple)
 
         # If we still have more jumps, recursively find the longest jump sequence
         if self.checkers_game.whose_turn() == prev_player:
@@ -185,7 +191,6 @@ class CheckersEnv(gym.Env):
             idx = np.argmax(counts)
             self.checkers_game = res[idx][1]
             # TODO do we update t_step?
-
 
         obs = self.get_obs()
         reward = self.get_reward()
@@ -267,7 +272,7 @@ class QNetwork(nn.Module):
         '''
         super().__init__()
 
-        self.state_vector_length = 32
+        self.state_vector_length = 32 * 5
         self.action_vector_length = 4 * 32
 
         self.layers = nn.Sequential(
@@ -464,9 +469,9 @@ class Agent:
         self.optim.step()
         return loss.item()
 
-    def select_action(self, state: np.ndarray, epsilon: float=0.) -> Tuple[int, int]:
-        '''Performs e-greedy action selection, TODO what type of action selection'''
-        # TODO random sampling -> do the same type of logic in policy
+    def select_action(self, state: np.ndarray) -> int:
+        '''Select an action'''
+        # TODO implement random sampling potentially
         return self.policy(state)
 
     def compute_epsilon(self, fraction: float) -> float:
@@ -478,24 +483,47 @@ class Agent:
         '''Copy weights of q-network to target q-network'''
         self.target_network.load_state_dict(self.network.state_dict())
 
-    def policy(self, state: np.ndarray) -> Tuple[int, int]:
-        '''Get the next action to take given the '''
-        t_state = torch.tensor(state, dtype=torch.float32,
+    def policy(self, state: np.ndarray) -> int:
+        '''Get the argmax of the output of the network'''
+
+        onehot_state = self.convert_state_to_one_hot(state)
+        t_state = torch.tensor(onehot_state, dtype=torch.float32,
                                device=self.device).unsqueeze(0)
         q_values = self.network.predict(t_state, self.env)
 
         q_value_idx = torch.argmax(q_values, dim=1)
 
-        from_pos = q_value_idx // 4
-        direction = q_value_idx % 4
+        return q_value_idx
 
-        action = self.env.get_action_from_action_space_idx(from_pos, direction)
+    @staticmethod
+    def convert_state_to_one_hot(s: np.ndarray) -> torch.Tensor:
+        """
+        Convert the standard state encoding returned by the environment into a one-hot encoding, size 32x5,
+        where every 5 elements correspond to the one hot encoding of a position. The one-hot encodings have the following
+        meanings:
+        * [1 0 0 0 0] -> P2 king
+        * [0 1 0 0 0] -> P2 normal
+        * [0 0 1 0 0] -> Empty
+        * [0 0 0 1 0] -> P1 normal
+        * [0 0 0 0 1] -> P1 king
+        """
 
-        # if the action is not legal, pick a random action
-        if action is None:
-            action = self.env.get_random_action()
-
-        return action
+        onehot = torch.zeros((32,5))
+        for i in range(32):
+            if s[i] == -2:
+                onehot[i] = torch.tensor([1, 0, 0, 0, 0])
+            elif s[i] == -1:
+                onehot[i] = torch.tensor([0, 1, 0, 0, 0])
+            elif s[i] == 0:
+                onehot[i] = torch.tensor([0, 0, 1, 0, 0])
+            elif s[i] == 1:
+                onehot[i] = torch.tensor([0, 0, 0, 1, 0])
+            elif s[i] == 2:
+                onehot[i] = torch.tensor([0, 0, 0, 0, 1])
+            else:
+                raise ValueError("Invalid value in state vector")
+        
+        return onehot.flatten()
 
 if __name__ == "__main__":
     env = CheckersEnv()
