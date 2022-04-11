@@ -106,4 +106,5 @@ dependencies:
     - tqdm
     - git+https://github.com/ImparaAI/checkers.git
     - pytest==7.0.1
+    - -r additional_requirements.txt
     - -e .
