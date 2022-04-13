@@ -7,7 +7,7 @@ from checkers.game import Game
 from mctspy.tree.nodes import TwoPlayersGameMonteCarloTreeSearchNode
 from mctspy.tree.search import MonteCarloTreeSearch
 
-from xarm_checkers.learning.mcts_checkers import CheckersGameState
+from xarm_checkers.learning.checkers import CheckersGameState
 from xarm_checkers.checkers.utils import (render_game, parse_input)
 
 DEBUG = True
