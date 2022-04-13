@@ -1,4 +1,4 @@
-from xarm_checkers.mcts.mcts_checkers import CheckersGameState
+from xarm_checkers.learning.mcts_checkers import CheckersGameState
 from mctspy.tree.nodes import TwoPlayersGameMonteCarloTreeSearchNode
 from mctspy.tree.search import MonteCarloTreeSearch
 from checkers.game import Game
