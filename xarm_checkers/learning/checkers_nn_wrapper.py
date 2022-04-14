@@ -13,11 +13,11 @@ from xarm_checkers.checkers.utils import game_as_numpy
 
 args = dotdict({
     'lr': 0.001,
-    'dropout': 0.3,
     'epochs': 10,
     'batch_size': 64,
     'cuda': torch.cuda.is_available(),
-    'num_channels': 512,
+    'num_channels': 33,
+    'residual_block_count': 10
 })
 
 class CheckersNNWrapper(NeuralNet):
@@ -25,7 +25,7 @@ class CheckersNNWrapper(NeuralNet):
     def __init__(self, game: CheckersGame):
         self.game = game
         self.device = 'cuda' if args.cuda else 'cpu'
-        self.network = CheckersNN()
+        self.network = CheckersNN(args)
 
         if args.cuda:
             self.network.cuda()
