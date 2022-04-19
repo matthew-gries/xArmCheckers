@@ -68,6 +68,7 @@ class CheckersNN(nn.Module):
         x = self.relu(x)
         x = torch.flatten(x, 1)
         x = self.policy_fc(x)
+        return x
 
     def value_head(self, x: torch.Tensor) -> torch.Tensor:
         """

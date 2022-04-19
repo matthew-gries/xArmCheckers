@@ -90,7 +90,7 @@ class CheckersNNWrapper(NeuralNet):
                 sample_ids = np.random.randint(len(examples), size=args.batch_size)
                 boards, pis, vs = list(zip(*[examples[i] for i in sample_ids]))
                 boards = [self.canonical_board_into_nn_rep(board) for board in boards]
-                boards = torch.FloatTensor(np.array(boards).astype(np.float64))
+                boards = torch.FloatTensor(boards)
                 target_pis = torch.FloatTensor(np.array(pis))
                 target_vs = torch.FloatTensor(np.array(vs).astype(np.float64))
 
@@ -116,14 +116,13 @@ class CheckersNNWrapper(NeuralNet):
 
     def predict(self, board: CheckersGameState) -> Tuple[np.ndarray, np.ndarray]:
         # preparing input
-        board = self.canonical_board_into_nn_rep(board)
-        board = torch.FloatTensor(board.astype(np.float64))
+        board_rep = self.canonical_board_into_nn_rep(board)
+        board_rep = board_rep.unsqueeze(dim=0)
         if args.cuda:
-            board = board.contiguous().cuda()
-        board = board.view(1, self.board_x, self.board_y)
-        self.nnet.eval()
+            board_rep = board_rep.contiguous().cuda()
+        self.network.eval()
         with torch.no_grad():
-            pi, v = self.nnet(board)
+            pi, v = self.network(board_rep.float())
 
         return torch.exp(pi).data.cpu().numpy()[0], v.data.cpu().numpy()[0]
 
