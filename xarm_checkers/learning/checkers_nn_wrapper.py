@@ -16,8 +16,8 @@ args = dotdict({
     'epoch': 10,
     'batch_size': 64,
     'cuda': torch.cuda.is_available(),
-    'num_channels': 33,
-    'residual_block_count': 10
+    'num_channels': 5,
+    'residual_block_count': 5
 })
 
 class CheckersNNWrapper(NeuralNet):
@@ -30,7 +30,7 @@ class CheckersNNWrapper(NeuralNet):
         if args.cuda:
             self.network = self.network.cuda()
 
-    def canonical_board_into_nn_rep(self, boards: CheckersGameState) -> torch.Tensor:
+    def canonical_board_into_nn_rep(self, board: CheckersGameState) -> torch.Tensor:
         """
         Convert the canonical representation of the board into a game state representation that the neural network can use.
         Uses an approach similar to the game of Go, but each positional layer is doubled such that there is a positional layer
@@ -38,14 +38,15 @@ class CheckersNNWrapper(NeuralNet):
 
         The top most layers will represent the positions of player 1's pieces
         """
-        # 33 channels, 8 game histories x 2 types of moves x 2 players + layer to determine which player
-        nn_rep = np.zeros((33, 8, 8))
+        # 5 channels, 2 types of pieces x 2 players + layer to determine which player
+        nn_rep = np.zeros((args.num_channels, 8, 8))
         # set current player in the last layer, if player 1 set these to all ones
-        if boards[0].whose_turn() == 1:
+        if board.whose_turn() == 1:
             nn_rep[1] = np.ones((8, 8))
         
         # fill in the players
-        for i, board in enumerate(boards):
+        # loop is a leftover from when there were game histories
+        for i, board in enumerate([board]):
             normal_idx_p1 = 2*i
             kings_idx_p1 = 2*i + 1
             board_as_np = game_as_numpy(board, as_board=True)
@@ -53,8 +54,8 @@ class CheckersNNWrapper(NeuralNet):
             king_pieces_p1 = np.where(board_as_np==2, 1, 0).astype(np.float64)
             nn_rep[normal_idx_p1] = normal_pieces_p1
             nn_rep[kings_idx_p1] = king_pieces_p1
-            normal_idx_p2 = 2*i + 16
-            kings_idx_p2 = 2*i + 16 + 1
+            normal_idx_p2 = 2*i + ((args.num_channels - 1) // 2)
+            kings_idx_p2 = 2*i + ((args.num_channels - 1) // 2) + 1
             board_as_np = game_as_numpy(board, as_board=True)
             normal_pieces_p2 = np.where(board_as_np==-1, 1, 0).astype(np.float64)
             king_pieces_p2 = np.where(board_as_np==-2, 1, 0).astype(np.float64)
@@ -90,7 +91,7 @@ class CheckersNNWrapper(NeuralNet):
                 sample_ids = np.random.randint(len(examples), size=args.batch_size)
                 boards, pis, vs = list(zip(*[examples[i] for i in sample_ids]))
                 boards_list = [self.canonical_board_into_nn_rep(board) for board in boards]
-                boards = torch.zeros((len(boards_list), 33, 8, 8)).to(self.device, dtype=torch.float64)
+                boards = torch.zeros((len(boards_list), args.num_channels, 8, 8)).to(self.device, dtype=torch.float64)
                 for i, board in enumerate(boards_list):
                     boards[i] = board
                 target_pis = torch.FloatTensor(np.array(pis))

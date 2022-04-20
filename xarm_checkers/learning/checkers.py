@@ -3,6 +3,7 @@ import numpy as np
 import copy
 from typing import List, Tuple
 import logging
+import time
 
 from xarm_checkers.alphago_zero.Game import Game
 from xarm_checkers.checkers.utils import render_game
@@ -31,9 +32,16 @@ class CheckersWrapper(checkers_game.Game):
         else:
             return None
 
+    def get_movable_pieces_count(self, player: int) -> int:
+        if player == 1:
+            return self.board.count_movable_player_pieces(2) if self.invert else self.board.count_movable_player_pieces(1)
+        else:
+            return self.board.count_movable_player_pieces(1) if self.invert else self.board.count_movable_player_pieces(2)
+
+
 # Set the type for a game state (or 'board')
 # This is meant to store the current state (position 0) plus the 7 previous histories of the game state
-CheckersGameState = List[CheckersWrapper]
+CheckersGameState = CheckersWrapper
 
 class CheckersGame(Game):
 
@@ -155,7 +163,7 @@ class CheckersGame(Game):
     def getInitBoard(self) -> CheckersGameState:
         """THIS IS NOT THE NN REPRESENTATION, this is the logical implementation that stores all our state
         """
-        return [CheckersWrapper()]
+        return CheckersWrapper()
 
     def getBoardSize(self):
         return (8,8)
@@ -175,6 +183,9 @@ class CheckersGame(Game):
         return actions[idx]
 
     def getNextState(self, board: CheckersGameState, player: int, action: int) -> Tuple[CheckersGameState, int]:
+        # loss, win/draw during training
+        # use cluster
+
 
         if action < 0:
             logging.warn(f"Invalid action {action} given!")
@@ -182,11 +193,9 @@ class CheckersGame(Game):
         if action > 127:
             logging.warn(f"Invalid action {action} given!")
             return board, player
-        
+
         # make a copy of the current board to mutate
-        new_board = copy.deepcopy(board[0])
-        # make a copy of the whole list to add the mutated board to and return
-        new_board_list = copy.deepcopy(board)
+        new_board = copy.deepcopy(board)
         current_player = new_board.whose_turn()
 
         # Whose turn it is between implementation and MCTS should always be in lockstep
@@ -199,7 +208,7 @@ class CheckersGame(Game):
 
         # if the action is not legal, pick a random legal action
         if action_tuple is None:
-            logging.warn("No lgeal actions could be found from this state! Picking a random action...")
+            logging.warn("No legal actions could be found from this state! Picking a random action...")
             action_tuple = self.get_random_action(new_board)
 
         if action_tuple is None:
@@ -211,9 +220,10 @@ class CheckersGame(Game):
 
         # If we still have more jumps, recursively find the longest jump sequence
         if new_board.whose_turn() == current_player:
-            logging.info("Making a long jump sequence...")
+            # logging.info("Making a long jump sequence...")
             game = new_board
             moves = game.get_possible_moves()
+            # print(moves)
             res = [self._get_max_subsequent_jumps_count(copy.deepcopy(game), current_player, m) for m in moves]
             counts = [r[0] for r in res]
             idx = np.argmax(counts)
@@ -224,18 +234,15 @@ class CheckersGame(Game):
         # make sure we have the next player
         assert next_player == -player
 
-        if len(board) < 8:
-            new_board_list.insert(0, new_board)
-        else:
-            new_board_list = new_board_list[:7]
-            new_board_list.insert(0, new_board)
-
-        return new_board_list, next_player
+        return new_board, next_player
 
     def getValidMoves(self, board: CheckersGameState, player: int) -> np.ndarray:
-        # Don't care about previous players or history, just want moves from the current board
+        if not ((player == self.PLAYER1 and board.whose_turn() == 1) or (player == self.PLAYER2 and board.whose_turn() == 2)):
+            logging.warn("getValidMoves is trying to get moves for the non-turn player...")
+            return np.zeros((self.getActionSize(),))
+
         moves = np.zeros((self.getActionSize(),))
-        legal_actions = board[0].get_possible_moves()
+        legal_actions = board.get_possible_moves()
         for from_pos, to_pos in legal_actions:
             potential_directions = self._move_map[from_pos]
             direction = 0
@@ -249,16 +256,25 @@ class CheckersGame(Game):
 
         return moves
 
-    def getGameEnded(self, board: CheckersWrapper, player: int) -> int:
+    def getGameEnded(self, board: CheckersGameState, player: int) -> float:
         # Don't actually need player field but its good to check anyway
-        if not board[0].is_over():
+        # Added heuristic here -> if we tie, give a small reward to the player with the most pieces
+        if not board.is_over():
             return 0
-        winner = board[0].get_winner()
+        winner = board.get_winner()
         if winner is None:
-            return 0.001
+            # tie condition, check if this player has the most movable pieces
+            p1_movable = board.get_movable_pieces_count(1)
+            p2_movable = board.get_movable_pieces_count(2)
+            if (p1_movable > p2_movable and player == self.PLAYER1) or (p2_movable > p1_movable and player == self.PLAYER2):
+                return 0.1
+            else:
+                return -0.1
         else:
-            winner = (self.PLAYER1 if board[0].get_winner() == 1 else self.PLAYER2)
-            return winner
+            if (player == self.PLAYER1 and winner == 1) or (player == self.PLAYER2 and winner == 2):
+                return 1
+            else:
+                return -1
 
     def getCanonicalForm(self, board: CheckersWrapper, player: int) -> CheckersWrapper:
         """
@@ -266,24 +282,15 @@ class CheckersGame(Game):
         report the opposite player if player 2
         """
 
-        new_boards = copy.deepcopy(board)
-        # if we currently have P2's state, swap whose turn we say it is for the current state and its histories
-        # (pretend we started with P2)
-        # if player == self.PLAYER2:
-        #     for new_board in new_boards:
-        #         new_board.invert = True 
-        # else:
-        #     for new_board in new_boards:
-        #         new_board.invert = False               
+        new_board = copy.deepcopy(board)           
         if player == self.PLAYER2:
-            for new_board in new_boards:
-                new_board.invert = not new_board.invert                          
+            new_board.invert = not new_board.invert                          
 
-        return new_boards
+        return new_board
 
     def getSymmetries(self, board, pi):
         # We don't care about symmetries with checkers
         return [(board, pi)]
 
     def stringRepresentation(self, board):
-        return "\n".join(render_game(b) for b in board)
+        return render_game(board)
