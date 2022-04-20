@@ -13,7 +13,7 @@ from xarm_checkers.checkers.utils import game_as_numpy
 
 args = dotdict({
     'lr': 0.001,
-    'epochs': 10,
+    'epoch': 10,
     'batch_size': 64,
     'cuda': torch.cuda.is_available(),
     'num_channels': 33,
@@ -89,8 +89,10 @@ class CheckersNNWrapper(NeuralNet):
             for _ in t:
                 sample_ids = np.random.randint(len(examples), size=args.batch_size)
                 boards, pis, vs = list(zip(*[examples[i] for i in sample_ids]))
-                boards = [self.canonical_board_into_nn_rep(board) for board in boards]
-                boards = torch.FloatTensor(boards)
+                boards_list = [self.canonical_board_into_nn_rep(board) for board in boards]
+                boards = torch.zeros((len(boards_list), 33, 8, 8)).to(self.device, dtype=torch.float64)
+                for i, board in enumerate(boards_list):
+                    boards[i] = board
                 target_pis = torch.FloatTensor(np.array(pis))
                 target_vs = torch.FloatTensor(np.array(vs).astype(np.float64))
 
