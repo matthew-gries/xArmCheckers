@@ -23,6 +23,14 @@ class CheckersWrapper(checkers_game.Game):
             return (1 if whose_turn == 2 else 2)
         return whose_turn
 
+    def get_winner(self):
+        if self.whose_turn() == 1 and not self.board.count_movable_player_pieces(1):
+            return 1 if self.invert else 2 # swapped
+        elif self.whose_turn() == 2 and not self.board.count_movable_player_pieces(2):
+            return 2 if self.invert else 1 # swapped
+        else:
+            return None
+
 # Set the type for a game state (or 'board')
 # This is meant to store the current state (position 0) plus the 7 previous histories of the game state
 CheckersGameState = List[CheckersWrapper]
@@ -181,7 +189,7 @@ class CheckersGame(Game):
         current_player = new_board.whose_turn()
 
         # Whose turn it is between implementation and MCTS should always be in lockstep
-        assert (player == self.PLAYER1 and current_player == 1) or (player == self.PLAYER2 and current_player == 2)
+        assert ((player == self.PLAYER1 and current_player == 1) or (player == self.PLAYER2 and current_player == 2))
 
         from_pos = (action // 4) + 1
         direction = action % 4
@@ -258,15 +266,17 @@ class CheckersGame(Game):
         """
 
         new_boards = copy.deepcopy(board)
+        # if we currently have P2's state, swap whose turn we say it is for the current state and its histories
+        # (pretend we started with P2)
+        # if player == self.PLAYER2:
+        #     for new_board in new_boards:
+        #         new_board.invert = True 
+        # else:
+        #     for new_board in new_boards:
+        #         new_board.invert = False               
         if player == self.PLAYER2:
             for new_board in new_boards:
-                new_board.invert = True       
-        else:
-            for new_board in new_boards:
-                new_board.invert = False                              
-        
-        # We should always be from the perspective of player 1
-        assert (new_boards[0].whose_turn() == 1 and len(new_boards) % 2 == 0) or (new_boards[0].whose_turn() == 2 and len(new_boards) % 2 == 1)
+                new_board.invert = not new_board.invert                          
 
         return new_boards
 
