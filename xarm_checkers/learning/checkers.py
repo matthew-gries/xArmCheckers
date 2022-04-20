@@ -10,7 +10,7 @@ from xarm_checkers.checkers.utils import render_game
 class CheckersWrapper(checkers_game.Game):
     """
     Wrapper around checkers game implementation that lets us get the canonical form of a game by
-    seting whether to invert the player or not.
+    seting whether to invert whose turn it is or not
     """
 
     def __init__(self):
@@ -140,6 +140,7 @@ class CheckersGame(Game):
         If a move cannot be made, returns None
         """
 
+        # Get the move to make from
         potential_positions = self._move_map[from_pos][idx]
         current_legal_moves = board.get_possible_moves()
 
@@ -210,6 +211,7 @@ class CheckersGame(Game):
 
         # If we still have more jumps, recursively find the longest jump sequence
         if new_board.whose_turn() == current_player:
+            logging.info("Making a long jump sequence...")
             game = new_board
             moves = game.get_possible_moves()
             res = [self._get_max_subsequent_jumps_count(copy.deepcopy(game), current_player, m) for m in moves]
@@ -231,8 +233,7 @@ class CheckersGame(Game):
         return new_board_list, next_player
 
     def getValidMoves(self, board: CheckersGameState, player: int) -> np.ndarray:
-        # Don't actually need player field but its good to check anyway
-        # assert (player == self.PLAYER1 and board[0].whose_turn() == 1) or (player == self.PLAYER1 and board[0].whose_turn() == 2)
+        # Don't care about previous players or history, just want moves from the current board
         moves = np.zeros((self.getActionSize(),))
         legal_actions = board[0].get_possible_moves()
         for from_pos, to_pos in legal_actions:
@@ -281,7 +282,7 @@ class CheckersGame(Game):
         return new_boards
 
     def getSymmetries(self, board, pi):
-        # TODO try to actually find symmetries, not sure if this is a thing that can be done with checkers
+        # We don't care about symmetries with checkers
         return [(board, pi)]
 
     def stringRepresentation(self, board):

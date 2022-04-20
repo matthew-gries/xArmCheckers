@@ -96,7 +96,6 @@ class CheckersNNWrapper(NeuralNet):
                 target_pis = torch.FloatTensor(np.array(pis))
                 target_vs = torch.FloatTensor(np.array(vs).astype(np.float64))
 
-                # predict
                 if args.cuda:
                     boards, target_pis, target_vs = boards.contiguous().cuda(), target_pis.contiguous().cuda(), target_vs.contiguous().cuda()
 
