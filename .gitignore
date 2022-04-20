@@ -130,3 +130,6 @@ dmypy.json
 
 # pickle
 *.pkl
+
+# don't push temp files
+temp/
