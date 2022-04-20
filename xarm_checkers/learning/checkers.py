@@ -177,10 +177,10 @@ class CheckersGame(Game):
 
         if action < 0:
             logging.warn(f"Invalid action {action} given!")
-            action = 0
+            return board, player
         if action > 127:
             logging.warn(f"Invalid action {action} given!")
-            action = 127
+            return board, player
         
         # make a copy of the current board to mutate
         new_board = copy.deepcopy(board[0])
@@ -201,11 +201,9 @@ class CheckersGame(Game):
             logging.warn("No lgeal actions could be found from this state! Picking a random action...")
             action_tuple = self.get_random_action(new_board)
 
-        # if there are no actions at all then this state is a leaf and we should
-        # early return
         if action_tuple is None:
-            logging.warn("No action could be found from this state! Somehow we are in a invalid state...")
-            return new_board_list, player
+            logging.warn("No random legal actions to choose from, something went wrong in this branch...")
+            return board, player
 
         # Make the move
         new_board.move(action_tuple)
@@ -252,9 +250,11 @@ class CheckersGame(Game):
 
     def getGameEnded(self, board: CheckersWrapper, player: int) -> int:
         # Don't actually need player field but its good to check anyway
+        if not board[0].is_over():
+            return 0
         winner = board[0].get_winner()
         if winner is None:
-            return 0
+            return 0.001
         else:
             winner = (self.PLAYER1 if board[0].get_winner() == 1 else self.PLAYER2)
             return winner

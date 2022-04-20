@@ -134,7 +134,7 @@ class CheckersNNWrapper(NeuralNet):
         else:
             print("Checkpoint Directory exists! ")
         torch.save({
-            'state_dict': self.nnet.state_dict(),
+            'state_dict': self.network.state_dict(),
         }, filepath)
 
     def load_checkpoint(self, folder='checkpoint', filename='checkpoint.pth.tar'):
@@ -144,4 +144,4 @@ class CheckersNNWrapper(NeuralNet):
             raise ("No model in path {}".format(filepath))
         map_location = None if args.cuda else 'cpu'
         checkpoint = torch.load(filepath, map_location=map_location)
-        self.nnet.load_state_dict(checkpoint['state_dict'])
+        self.network.load_state_dict(checkpoint['state_dict'])

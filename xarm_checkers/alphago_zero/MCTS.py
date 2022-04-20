@@ -73,6 +73,7 @@ class MCTS():
         """
 
         s = self.game.stringRepresentation(canonicalBoard)
+        # print(s)
 
         if s not in self.Es:
             self.Es[s] = self.game.getGameEnded(canonicalBoard, 1)
@@ -118,11 +119,17 @@ class MCTS():
                     cur_best = u
                     best_act = a
 
+        if best_act == -1:
+            logging.warn("A best action could not be found!")
+            # try to end this branch of exploration
+            return -self.Es[s]
+
         a = best_act
         next_s, next_player = self.game.getNextState(canonicalBoard, 1, a)
         next_s = self.game.getCanonicalForm(next_s, next_player)
 
-        v = self.search(next_s)
+        if s != self.game.stringRepresentation(next_s):
+            v = self.search(next_s)
 
         if (s, a) in self.Qsa:
             self.Qsa[(s, a)] = (self.Nsa[(s, a)] * self.Qsa[(s, a)] + v) / (self.Nsa[(s, a)] + 1)
