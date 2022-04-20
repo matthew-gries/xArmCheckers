@@ -80,6 +80,11 @@ class Coach():
         only if it wins >= updateThreshold fraction of games.
         """
 
+        new_wins_per_iter = []
+        prev_wins_per_iter = []
+        draws_per_iter = []
+        accept_per_iter = []
+
         for i in range(1, self.args.numIters + 1):
             # bookkeeping
             log.info(f'Starting Iter #{i} ...')
@@ -109,8 +114,8 @@ class Coach():
             shuffle(trainExamples)
 
             # training new network, keeping a copy of the old one
-            self.nnet.save_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
-            self.pnet.load_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
+            self.nnet.save_checkpoint(folder=self.args.checkpoint, filename=f'temp{i}.pth.tar')
+            self.pnet.load_checkpoint(folder=self.args.checkpoint, filename=f'temp{i}.pth.tar')
             pmcts = MCTS(self.game, self.pnet, self.args)
 
             self.nnet.train(trainExamples)
@@ -121,17 +126,39 @@ class Coach():
                           lambda x: np.argmax(nmcts.getActionProb(x, temp=0)), self.game)
             pwins, nwins, draws = arena.playGames(self.args.arenaCompare)
 
+            new_wins_per_iter.append(nwins)
+            prev_wins_per_iter.append(pwins)
+            draws_per_iter.append(draws)
+
             log.info('NEW/PREV WINS : %d / %d ; DRAWS : %d' % (nwins, pwins, draws))
             if pwins + nwins == 0 or float(nwins) / (pwins + nwins) < self.args.updateThreshold:
                 log.info('REJECTING NEW MODEL')
-                self.nnet.load_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
+                accept_per_iter.append(0)
+                self.nnet.load_checkpoint(folder=self.args.checkpoint, filename=f'temp{i}.pth.tar')
             else:
                 log.info('ACCEPTING NEW MODEL')
                 self.nnet.save_checkpoint(folder=self.args.checkpoint, filename=self.getCheckpointFile(i))
                 self.nnet.save_checkpoint(folder=self.args.checkpoint, filename='best.pth.tar')
+                accept_per_iter.append(1)
+        
+        self.saveMetrics(new_wins_per_iter, prev_wins_per_iter, draws_per_iter, accept_per_iter)
 
     def getCheckpointFile(self, iteration):
         return 'checkpoint_' + str(iteration) + '.pth.tar'
+
+    def saveMetrics(self, new_wins, prev_wins, draws, accepts):
+        folder = self.args.checkpoint
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+        new_filename = os.path.join(folder, "new_wins.npy")
+        prev_filename = os.path.join(folder, "prev_wins.npy")
+        draw_filename = os.path.join(folder, "draws.npy")
+        accept_filename = os.path.join(folder, "accepts.npy")
+
+        np.save(new_filename, np.array(new_wins))
+        np.save(prev_filename, np.array(prev_wins))
+        np.save(draw_filename, np.array[draws])
+        np.save(accept_filename, np.array[accepts])
 
     def saveTrainExamples(self, iteration):
         folder = self.args.checkpoint
