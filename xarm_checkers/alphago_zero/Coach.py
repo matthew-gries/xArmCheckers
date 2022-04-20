@@ -46,6 +46,7 @@ class Coach():
                            pi is the MCTS informed policy vector, v is +1 if
                            the player eventually won the game, else -1.
         """
+
         trainExamples = []
         board = self.game.getInitBoard()
         self.curPlayer = 1
@@ -56,7 +57,9 @@ class Coach():
             canonicalBoard = self.game.getCanonicalForm(board, self.curPlayer)
             temp = int(episodeStep < self.args.tempThreshold)
 
+            # start = time.time()
             pi = self.mcts.getActionProb(canonicalBoard, temp=temp)
+            # print(time.time() - start)
             sym = self.game.getSymmetries(canonicalBoard, pi)
             for b, p in sym:
                 trainExamples.append([b, self.curPlayer, p, None])
@@ -157,8 +160,8 @@ class Coach():
 
         np.save(new_filename, np.array(new_wins))
         np.save(prev_filename, np.array(prev_wins))
-        np.save(draw_filename, np.array[draws])
-        np.save(accept_filename, np.array[accepts])
+        np.save(draw_filename, np.array(draws))
+        np.save(accept_filename, np.array(accepts))
 
     def saveTrainExamples(self, iteration):
         folder = self.args.checkpoint

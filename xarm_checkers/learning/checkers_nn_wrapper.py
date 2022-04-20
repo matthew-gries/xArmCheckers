@@ -17,7 +17,8 @@ args = dotdict({
     'batch_size': 64,
     'cuda': torch.cuda.is_available(),
     'num_channels': 5,
-    'residual_block_count': 5
+    'residual_block_count': 5,
+    'checkpoint': './temp/',
 })
 
 class CheckersNNWrapper(NeuralNet):
@@ -26,6 +27,7 @@ class CheckersNNWrapper(NeuralNet):
         self.game = game
         self.device = 'cuda' if args.cuda else 'cpu'
         self.network = CheckersNN(args)
+        self.training_iter = 0
 
         if args.cuda:
             self.network = self.network.cuda()
@@ -71,11 +73,26 @@ class CheckersNNWrapper(NeuralNet):
 
     # Taken from othello example
     def loss_v(self, targets, outputs):
-        return torch.sum((targets - outputs.view(-1)) ** 2) / targets.size()[0]        
+        return torch.sum((targets - outputs.view(-1)) ** 2) / targets.size()[0]  
+
+    def saveLosses(self, pi_losses, v_losses):
+        folder = args.checkpoint
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+        pi_loss_filename = os.path.join(folder, f"pi_losses{self.training_iter}.npy")
+        v_loss_filename = os.path.join(folder, f"v_losses{self.training_iter}.npy")
+
+        np.save(pi_loss_filename, np.array(pi_losses))
+        np.save(v_loss_filename, np.array(v_losses))
+
+        self.training_iter += 1
 
     def train(self, examples: List[Tuple[CheckersGameState, np.ndarray, float]]):
-        # Convert boards into neural network representations
+
         optimizer = optim.Adam(self.network.parameters())
+
+        pi_losses_list = []
+        v_losses_list = []
 
         for epoch in range(args.epoch):
             print('EPOCH ::: ' + str(epoch + 1))
@@ -94,14 +111,14 @@ class CheckersNNWrapper(NeuralNet):
                 boards = torch.zeros((len(boards_list), args.num_channels, 8, 8)).to(self.device, dtype=torch.float64)
                 for i, board in enumerate(boards_list):
                     boards[i] = board
-                target_pis = torch.FloatTensor(np.array(pis))
-                target_vs = torch.FloatTensor(np.array(vs).astype(np.float64))
+                target_pis = torch.FloatTensor(np.array(pis)).to(self.device, dtype=torch.float64)
+                target_vs = torch.FloatTensor(np.array(vs).astype(np.float64)).to(self.device, dtype=torch.float64)
 
                 if args.cuda:
                     boards, target_pis, target_vs = boards.contiguous().cuda(), target_pis.contiguous().cuda(), target_vs.contiguous().cuda()
 
                 # compute output
-                out_pi, out_v = self.network(boards)
+                out_pi, out_v = self.network(boards.to(self.device, dtype=torch.float))
                 l_pi = self.loss_pi(target_pis, out_pi)
                 l_v = self.loss_v(target_vs, out_v)
                 total_loss = l_pi + l_v
@@ -115,6 +132,12 @@ class CheckersNNWrapper(NeuralNet):
                 optimizer.zero_grad()
                 total_loss.backward()
                 optimizer.step()
+
+            # Save average loss per epoch
+            pi_losses_list.append(pi_losses.avg)
+            v_losses_list.append(v_losses.avg)
+
+        self.saveLosses(pi_losses_list, v_losses_list)
 
     def predict(self, board: CheckersGameState) -> Tuple[np.ndarray, np.ndarray]:
         # preparing input
