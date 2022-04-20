@@ -3,5 +3,6 @@
         "."
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    "python.pythonPath": "C:\\Users\\Matthew\\anaconda3\\envs\\xarm_checkers\\python.exe"
 }

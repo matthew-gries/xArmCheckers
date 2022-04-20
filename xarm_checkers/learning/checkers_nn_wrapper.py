@@ -28,7 +28,7 @@ class CheckersNNWrapper(NeuralNet):
         self.network = CheckersNN(args)
 
         if args.cuda:
-            self.network.cuda()
+            self.network = self.network.cuda()
 
     def canonical_board_into_nn_rep(self, boards: CheckersGameState) -> torch.Tensor:
         """
@@ -117,12 +117,12 @@ class CheckersNNWrapper(NeuralNet):
     def predict(self, board: CheckersGameState) -> Tuple[np.ndarray, np.ndarray]:
         # preparing input
         board_rep = self.canonical_board_into_nn_rep(board)
-        board_rep = board_rep.unsqueeze(dim=0)
+        board_rep = board_rep.unsqueeze(dim=0).float()
         if args.cuda:
             board_rep = board_rep.contiguous().cuda()
         self.network.eval()
         with torch.no_grad():
-            pi, v = self.network(board_rep.float())
+            pi, v = self.network(board_rep)
 
         return torch.exp(pi).data.cpu().numpy()[0], v.data.cpu().numpy()[0]
 

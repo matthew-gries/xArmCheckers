@@ -14,13 +14,13 @@ class CheckersNN(nn.Module):
         self.top_batch_norm = nn.BatchNorm2d(256)
         # Make unique layers for each residual block, we can then index the blocks to specify which residual layer
         # to use
-        self.residual_pieces = [nn.Sequential(
+        self.residual_pieces = nn.ModuleList([nn.Sequential(
             nn.Conv2d(256, 256, 3, padding=1),
             nn.BatchNorm2d(256),
             nn.ReLU(inplace=False),
             nn.Conv2d(256, 256, 3, padding=1),
             nn.BatchNorm2d(256)
-        ) for _ in range(args.residual_block_count)]
+        ) for _ in range(args.residual_block_count)])
 
         self.policy_conv_layer = nn.Conv2d(256, 2, 1)
         self.policy_batch_norm = nn.BatchNorm2d(2)
