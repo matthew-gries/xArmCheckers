@@ -52,10 +52,18 @@ class Arena():
             valids = self.game.getValidMoves(self.game.getCanonicalForm(board, curPlayer), 1)
 
             if valids[action] == 0:
+                # instead of crashing, just say the game ended in the other players victory
                 log.error(f'Action {action} is not valid!')
                 log.debug(f'valids = {valids}')
-                assert valids[action] > 0
+                return -curPlayer
+                # assert valids[action] > 0
+            prevPlayer = curPlayer
             board, curPlayer = self.game.getNextState(board, curPlayer, action)
+            # if something went wrong and state returned is the same (i.e. the player is the same)
+            # then do the same as above, just say the other player won
+            if curPlayer == prevPlayer:
+                log.error("Something went wrong getting the next game state")
+                return -curPlayer
         if verbose:
             assert self.display
             print("Game over: Turn ", str(it), "Result ", str(self.game.getGameEnded(board, 1)))

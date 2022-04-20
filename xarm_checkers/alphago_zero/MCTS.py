@@ -1,5 +1,6 @@
 import logging
 import math
+import time
 
 import numpy as np
 
@@ -120,7 +121,7 @@ class MCTS():
                     best_act = a
 
         if best_act == -1:
-            logging.warn("A best action could not be found!")
+            logging.error("A best action could not be found!")
             # try to end this branch of exploration
             return -self.Es[s]
 
@@ -128,7 +129,9 @@ class MCTS():
         next_s, next_player = self.game.getNextState(canonicalBoard, 1, a)
         next_s = self.game.getCanonicalForm(next_s, next_player)
 
-        if s != self.game.stringRepresentation(next_s):
+        if next_player == 1:
+            logging.error("Something went wrong getting the next game state...")
+        if next_player != 1:
             v = self.search(next_s)
 
         if (s, a) in self.Qsa:

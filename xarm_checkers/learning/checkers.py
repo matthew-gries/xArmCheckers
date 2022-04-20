@@ -184,14 +184,12 @@ class CheckersGame(Game):
 
     def getNextState(self, board: CheckersGameState, player: int, action: int) -> Tuple[CheckersGameState, int]:
         # loss, win/draw during training
-        # use cluster
-
 
         if action < 0:
-            logging.warn(f"Invalid action {action} given!")
+            logging.error(f"Invalid action {action} given!")
             return board, player
         if action > 127:
-            logging.warn(f"Invalid action {action} given!")
+            logging.error(f"Invalid action {action} given!")
             return board, player
 
         # make a copy of the current board to mutate
@@ -212,7 +210,7 @@ class CheckersGame(Game):
             action_tuple = self.get_random_action(new_board)
 
         if action_tuple is None:
-            logging.warn("No random legal actions to choose from, something went wrong in this branch...")
+            logging.error("No random legal actions to choose from, something went wrong in this branch...")
             return board, player
 
         # Make the move
