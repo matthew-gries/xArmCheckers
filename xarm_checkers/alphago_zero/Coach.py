@@ -5,6 +5,7 @@ from collections import deque
 from pickle import Pickler, Unpickler
 from random import shuffle
 import time
+from xarm_checkers.checkers.utils import render_game_alpha_go 
 
 import numpy as np
 from tqdm import tqdm
@@ -14,6 +15,8 @@ from MCTS import MCTS
 
 log = logging.getLogger(__name__)
 
+def display_board(x):
+    print(render_game_alpha_go(x, x.invert))
 
 class Coach():
     """
@@ -126,8 +129,8 @@ class Coach():
 
             log.info('PITTING AGAINST PREVIOUS VERSION')
             arena = Arena(lambda x: np.argmax(pmcts.getActionProb(x, temp=0)),
-                          lambda x: np.argmax(nmcts.getActionProb(x, temp=0)), self.game)
-            pwins, nwins, draws = arena.playGames(self.args.arenaCompare)
+                          lambda x: np.argmax(nmcts.getActionProb(x, temp=0)), self.game, display_board)
+            pwins, nwins, draws = arena.playGames(self.args.arenaCompare, verbose=False)
 
             new_wins_per_iter.append(nwins)
             prev_wins_per_iter.append(pwins)

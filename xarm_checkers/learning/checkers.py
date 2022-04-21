@@ -6,7 +6,7 @@ import logging
 import time
 
 from xarm_checkers.alphago_zero.Game import Game
-from xarm_checkers.checkers.utils import render_game
+from xarm_checkers.checkers.utils import render_game_alpha_go
 
 class CheckersWrapper(checkers_game.Game):
     """
@@ -206,7 +206,10 @@ class CheckersGame(Game):
 
         # if the action is not legal, pick a random legal action
         if action_tuple is None:
-            logging.warn("No legal actions could be found from this state! Picking a random action...")
+            logging.warn("The requested action cannot be taken, taking a random action...")
+            print(action)
+            print(f"from {from_pos}, in dir of {direction}")
+            print(self.stringRepresentation(board))
             action_tuple = self.get_random_action(new_board)
 
         if action_tuple is None:
@@ -291,4 +294,4 @@ class CheckersGame(Game):
         return [(board, pi)]
 
     def stringRepresentation(self, board):
-        return render_game(board)
+        return render_game_alpha_go(board, invert=board.invert)

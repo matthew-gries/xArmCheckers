@@ -47,6 +47,62 @@ def render_game(checkers: Game) -> str:
 
     return f"{str(board)}\n{player_display}"
 
+def render_game_alpha_go(checkers: Game, invert: bool) -> str:
+    """
+    Render the current state of the checkers game used in alpha go, but also consider
+    when pieces need to be inverted. (The player whose turn is reported is already inverted)
+
+    :param checkers: the game of checkers
+    :type checkers: Game
+    :param invert: if piece numbers should be inverted
+    :type invert: bool
+    :return: a string representation of this game of checkers.
+    :rtype: str
+    """
+
+    # Render the board
+    board_pieces = ["  " for _ in range(32)]
+
+    for piece in checkers.board.pieces:
+        if piece.captured:
+            continue
+        king = "K" if piece.king else "P"
+        player = str(piece.player)
+
+        # invert if needed
+        if player == "1" and invert:
+            player = "2"
+        elif player == "2" and invert:
+            player = "1"
+
+        identifier = f"{king}{player}"
+        board_pieces[piece.position-1] = identifier
+
+    # use a numpy array of strings so we can quickly handle the formatting
+    board_groups = []
+    left_adjust = True
+    for i, x in enumerate(board_pieces):
+
+        if left_adjust:
+            board_groups.append([" ", x])
+        else:
+            board_groups.append([x, " "])
+
+        if (i+1) % 4 == 0:
+            left_adjust = not left_adjust
+
+    board = np.array(board_groups, dtype=object)
+    board = board.flatten().reshape(8, 8)
+
+    player_display = ""
+    if checkers.is_over():
+        player_display = f"Winner: {checkers.get_winner()}"
+    else:
+        player_display = f"Current turn: Player {checkers.whose_turn()}"
+
+    return f"{str(board)}\n{player_display}"
+    # return f"{str(board)}"
+
 def game_as_numpy(checkers: Game, as_board: bool = False) -> np.ndarray:
     """
     Convert the checkers game as a numpy array
